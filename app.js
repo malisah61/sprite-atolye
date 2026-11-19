@@ -205,6 +205,7 @@ async function interpret(text, tur, cins) {
   const q = `You write prompts for an image model that draws 2D game assets. Convert this Turkish description of a ${TUR_EN[tur] || 'game asset'} into a concise English visual description. ` +
     'Rules: describe only what can be seen (gender, age, body build, face and expression, hair, skin, clothing with colors, accessories, held items, pose). ' +
     'Turn abstract traits into visible details (strong -> muscular arms and broad shoulders; capable -> confident stance with a tool belt; slightly tired -> faint dark circles under the eyes; happy -> warm smile). ' +
+    'Start with the overall body plan and creature type first (e.g. "spider-bodied creature with a cat head", "winged lion humanoid"), because the image model weighs the first words most; if the body is not humanoid say so explicitly (e.g. "not humanoid, no arms"). ' +
     'Keep every concrete detail that is given, never drop one. ' + g +
     'Do not mention background, art style, lighting or camera. Reply with one line of comma-separated phrases, at most 50 words, nothing else.\n\nDescription: ' + text;
   try {
