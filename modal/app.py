@@ -40,8 +40,17 @@ def download_rembg():
     new_session("isnet-general-use")
 
 
-def defringe(im, passes=12):
-    """Kenardaki açık gri/beyaz hale piksellerini ve yer gölgesini temizler, alfayı netleştirir."""
+def border_bg(rgb):
+    """Görselin kenar piksellerinden arka plan rengini (medyan) bulur."""
+    import numpy as np
+
+    edge = np.concatenate([rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]])
+    return np.median(edge, axis=0)
+
+
+def defringe(im, passes=12, bg=None):
+    """Kenarda kalan arka plan kalıntılarını ve yer gölgesini temizler, alfayı netleştirir.
+    bg verilirse sadece arka plan rengine (veya gölgesine) benzeyen kenar pikselleri silinir."""
     import numpy as np
     from PIL import Image
 
@@ -51,7 +60,15 @@ def defringe(im, passes=12):
     al[al >= 110] = 255
     mx, mn = rgb.max(-1), rgb.min(-1)
     sat = (mx - mn) / np.maximum(mx, 1)
-    pale = (sat < 0.22) & (mx > 115)  # beyaz/gri arka plan kalıntısı
+    if bg is not None:
+        d = np.sqrt(((rgb - np.asarray(bg)) ** 2).sum(-1))
+        lum_bg = float(np.mean(bg))
+        lum = rgb.mean(-1)
+        # arka plana yakın ya da arka planın koyu (gölge) tonu, düşük doygunluk
+        shadow = (sat < 0.12) & (lum < lum_bg) & (lum > lum_bg * 0.45)
+        pale = (d < 48) | shadow
+    else:
+        pale = (sat < 0.22) & (mx > 115)
     for _ in range(passes):
         solid = al > 0
         nb = np.zeros_like(solid)
@@ -65,6 +82,23 @@ def defringe(im, passes=12):
         al[edge] = 0
     a[..., 3] = al
     return Image.fromarray(a.astype(np.uint8), "RGBA")
+
+
+def fill_holes(orig_rgb, cut, bg):
+    """Karakterin içinde yanlışlıkla silinen yerleri (beyaz gömlek gibi) geri getirir.
+    İçeride kalan şeffaf boşluk arka plan rengine benzemiyorsa geri doldurulur."""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+
+    a = np.array(cut.convert("RGBA"))
+    opaque = a[..., 3] >= 110
+    holes = ndimage.binary_fill_holes(opaque) & ~opaque
+    d = np.sqrt(((orig_rgb.astype(np.int32) - np.asarray(bg)) ** 2).sum(-1))
+    restore = holes & (d > 40)
+    a[restore, :3] = orig_rgb[restore]
+    a[restore, 3] = 255
+    return Image.fromarray(a, "RGBA")
 
 
 # ---------- Otomatik temizlik (numpy) ----------
@@ -134,13 +168,13 @@ def to_native_pixels(im, k):
             out[j, i, 3] = 255
     return Image.fromarray(out, "RGBA")
 
-def auto_clean(im, style):
+def auto_clean(im, style, bg=None):
     """Arka planı silinmiş görseli oyuna hazır hale getirir (ızgara, kalıntı, kırpma)."""
     if style == "pixel":
         k, _ = detect_block(im)
         if k:
             small = to_native_pixels(im, k)
-            return trim(defringe(small, passes=2), 1), k
+            return trim(defringe(small, passes=2, bg=bg), 1), k
     return trim(im, 4), None
 
 
@@ -158,7 +192,7 @@ image = (
         "pillow==11.0.0",
     )
     .run_function(download_models)
-    .pip_install("rembg==2.0.59", "onnxruntime==1.19.2")
+    .pip_install("rembg==2.0.59", "onnxruntime==1.19.2", "scipy")
     .run_function(download_rembg)
 )
 
@@ -197,8 +231,14 @@ class Motor:
         """Yapay zekâ ile arka plan silme (gölge dahil) → RGBA."""
         from rembg import remove
 
+        import numpy as np
+
+        rgb = np.array(im.convert("RGB"))
+        bg = border_bg(rgb)
         out = remove(im.convert("RGB"), session=self.rb, post_process_mask=True)
-        return defringe(out)
+        out = fill_holes(rgb, out, bg)
+        self.last_bg = bg
+        return defringe(out, bg=bg)
 
     def _run(self, prompt, negative, seed, n, width, height, style, transparent=False, auto=False):
         import base64
@@ -226,7 +266,7 @@ class Motor:
             if transparent or auto:
                 im = self._cut(im)
             if auto:
-                im, k = auto_clean(im, style)
+                im, k = auto_clean(im, style, getattr(self, "last_bg", None))
                 grids.append(k)
             buf = io.BytesIO()
             im.save(buf, format="PNG")
@@ -289,7 +329,7 @@ class Motor:
             out = self._cut(im)
             k = None
             if body.get("auto", True):
-                out, k = auto_clean(out, "pixel")  # ızgara bulunursa gerçek piksel boyutu, yoksa sadece kırpma
+                out, k = auto_clean(out, "pixel", getattr(self, "last_bg", None))  # ızgara bulunursa gerçek piksel boyutu, yoksa sadece kırpma
             buf = io.BytesIO()
             out.save(buf, format="PNG")
             return {"image": base64.b64encode(buf.getvalue()).decode(), "grid": k, "seconds": round(time.time() - t0, 2)}

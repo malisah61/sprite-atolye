@@ -180,7 +180,7 @@ const BAKIS = {
   iso: 'isometric view',
   threequarter: 'three-quarter view',
 };
-const BG = 'isolated on a plain flat solid white background, no shadow, no ground, no scenery';
+const BG = 'isolated on a plain flat solid medium gray background, no shadow, no ground, no scenery';
 
 const trCache = new Map();
 async function toEnglish(text) {
