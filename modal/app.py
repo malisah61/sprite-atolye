@@ -7,7 +7,10 @@ Uç nokta (POST /generate):
   istek:  {"prompt": str, "seed": int, "n": 1-4, "width"/"height": 512-1216 (veya "size"),
            "style": "pixel" | "other", "negative": str}
   başlık: X-Sprite-Key: <SPRITE_KEY>
+           "transparent": bool  → arka planı silinmiş PNG döner
   cevap:  {"images": ["<base64 png>", ...], "seconds": float}
+
+POST /rembg  {"image": "<base64>"} → {"image": "<base64 RGBA png>"}
 """
 import modal
 
@@ -30,6 +33,12 @@ def download_models():
     hf_hub_download(PIXEL_LORA, PIXEL_LORA_FILE)
 
 
+def download_rembg():
+    from rembg import new_session
+
+    new_session("isnet-general-use")
+
+
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
@@ -44,6 +53,8 @@ image = (
         "pillow==11.0.0",
     )
     .run_function(download_models)
+    .pip_install("rembg==2.0.59", "onnxruntime==1.19.2")
+    .run_function(download_rembg)
 )
 
 app = modal.App(APP_NAME, image=image)
@@ -73,8 +84,17 @@ class Motor:
         pipe.to("cuda")
         pipe.enable_vae_slicing()
         self.pipe = pipe
+        from rembg import new_session
 
-    def _run(self, prompt, negative, seed, n, width, height, style):
+        self.rb = new_session("isnet-general-use")
+
+    def _cut(self, im):
+        """Yapay zekâ ile arka plan silme (gölge dahil) → RGBA."""
+        from rembg import remove
+
+        return remove(im.convert("RGB"), session=self.rb, post_process_mask=True)
+
+    def _run(self, prompt, negative, seed, n, width, height, style, transparent=False):
         import base64
         import io
         import time
@@ -96,6 +116,8 @@ class Motor:
         ).images
         imgs = []
         for im in out:
+            if transparent:
+                im = self._cut(im)
             buf = io.BytesIO()
             im.save(buf, format="PNG")
             imgs.append(base64.b64encode(buf.getvalue()).decode())
@@ -136,6 +158,26 @@ class Motor:
             height = clamp(body.get("height", size))
             style = str(body.get("style", "pixel"))
             negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters, character sheet, multiple views, duplicate, turnaround, ground shadow"))[:500]
-            return self._run(prompt, negative, seed, n, width, height, style)
+            transparent = bool(body.get("transparent", False))
+            return self._run(prompt, negative, seed, n, width, height, style, transparent)
+
+        @api.post("/rembg")
+        def rembg(body: dict, x_sprite_key: str = Header(default="")):
+            import base64
+            import io
+            import time
+
+            from PIL import Image
+
+            if key and x_sprite_key != key:
+                raise HTTPException(status_code=401, detail="Anahtar yanlış")
+            t0 = time.time()
+            raw = base64.b64decode(str(body.get("image", "")).split(",")[-1])
+            im = Image.open(io.BytesIO(raw))
+            im.thumbnail((2048, 2048))
+            out = self._cut(im)
+            buf = io.BytesIO()
+            out.save(buf, format="PNG")
+            return {"image": base64.b64encode(buf.getvalue()).decode(), "seconds": round(time.time() - t0, 2)}
 
         return api

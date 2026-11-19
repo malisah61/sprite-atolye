@@ -244,7 +244,7 @@ const ENGINES = {
   pollinations: {
     name: 'Pollinations',
     minGap: 16000,
-    async generate({ prompt, seed, model, w = 1024, h = 1024 }) {
+    async generate({ prompt, seed, model, w = 1024, h = 1024, seffaf = false }) {
       const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) +
         `?width=${w}&height=${h}&seed=${seed}&model=${model}&nologo=true&private=true`;
       const ac = new AbortController();
@@ -255,14 +255,16 @@ const ENGINES = {
         if (!r.ok) throw new Error('Sunucu hatası ' + r.status);
         const blob = await r.blob();
         if (!blob.type.startsWith('image')) throw new Error('Görsel gelmedi');
-        return blobToCanvas(blob);
+        const c = await blobToCanvas(blob);
+        if (seffaf) removeBackground(c, 45);
+        return c;
       } finally { clearTimeout(to); }
     },
   },
   modal: {
     name: 'Modal (kendi GPU)',
     minGap: 0,
-    async generate({ prompt, seed, stil, negatif, w = 1024, h = 1024 }) {
+    async generate({ prompt, seed, stil, negatif, w = 1024, h = 1024, seffaf = false }) {
       const { url, key } = modalCfg();
       const ac = new AbortController();
       const to = setTimeout(() => ac.abort(), 300000);
@@ -270,7 +272,7 @@ const ENGINES = {
         const r = await fetch(url.replace(/\/+$/, '') + '/generate', {
           method: 'POST', signal: ac.signal,
           headers: { 'Content-Type': 'application/json', 'X-Sprite-Key': key },
-          body: JSON.stringify({ prompt, seed, n: 1, width: w, height: h, style: stil === 'pixel' ? 'pixel' : 'other', negative: negatif || undefined }),
+          body: JSON.stringify({ prompt, seed, n: 1, width: w, height: h, transparent: seffaf, style: stil === 'pixel' ? 'pixel' : 'other', negative: negatif || undefined }),
         });
         if (r.status === 401) throw new Error('Motor anahtarı yanlış');
         if (!r.ok) throw new Error('Modal hatası ' + r.status);
@@ -358,7 +360,9 @@ $('#btnUret').onclick = async () => {
   const o = {
     tur: $('#tur').value, stil: $('#stil').value, bakis: $('#bakis').value,
     recete: $('#recete').value.trim(), negatif: $('#negatif').value.trim(),
+    seffaf: $('#seffaf').checked && $('#tur').value !== 'tile',
   };
+  localStorage.setItem('sa-seffaf', $('#seffaf').checked ? '1' : '0');
   localStorage.setItem('sa-recete', o.recete);
   const n = +$('#adet').value;
   const model = $('#model').value;
@@ -376,7 +380,7 @@ $('#btnUret').onclick = async () => {
     $('#sonuclar').prepend(card);
     const w = card.querySelector('.wait');
     enqueue({
-      params: { prompt, seed, model, stil: o.stil, negatif: o.negatif, ...sizeFor(o.tur) },
+      params: { prompt, seed, model, stil: o.stil, negatif: o.negatif, seffaf: o.seffaf, ...sizeFor(o.tur) },
       onWait: s => { w.textContent = `Sırada · ${s} sn`; $('#durum').textContent = `Ücretsiz sıra: ${queue.length + 1} iş bekliyor`; },
       onStart: eng => { w.textContent = 'Üretiliyor (' + eng.name + ')...'; card.querySelector('.meta').textContent += ' · ' + eng.name.split(' ')[0]; },
       onDone: c => {
@@ -396,6 +400,7 @@ $('#btnUret').onclick = async () => {
   }
 };
 $('#recete').value = localStorage.getItem('sa-recete') || '';
+$('#seffaf').checked = localStorage.getItem('sa-seffaf') !== '0';
 
 /* ---------------- Atölye ---------------- */
 const WS = { canvas: null, name: 'sprite', history: [] };
@@ -448,18 +453,27 @@ function removeBackground(c, tol) {
   const dist = i => Math.sqrt((d[i] - br) ** 2 + (d[i + 1] - bg) ** 2 + (d[i + 2] - bb) ** 2);
   const seen = new Uint8Array(w * h);
   const stack = [];
-  const tryPush = p => { if (!seen[p]) { const i = p * 4; if (d[i + 3] === 0 || dist(i) < tol) { seen[p] = 1; stack.push(p); } } };
-  for (let x = 0; x < w; x++) { tryPush(x); tryPush((h - 1) * w + x); }
-  for (let y = 0; y < h; y++) { tryPush(y * w); tryPush(y * w + w - 1); }
+  const orig = new Uint8ClampedArray(d);
+  // komşudan komşuya yumuşak geçiş (degrade/vinyet arka planlar için)
+  const near = (a, b) => Math.abs(orig[a] - orig[b]) + Math.abs(orig[a + 1] - orig[b + 1]) + Math.abs(orig[a + 2] - orig[b + 2]);
+  const tryPush = (p, from) => {
+    if (seen[p]) return;
+    const i = p * 4;
+    const ok = orig[i + 3] === 0 || dist(i) < tol ||
+      (from >= 0 && near(i, from * 4) < tol * 0.3 && dist(i) < tol * 2.2);
+    if (ok) { seen[p] = 1; stack.push(p); }
+  };
+  for (let x = 0; x < w; x++) { tryPush(x, -1); tryPush((h - 1) * w + x, -1); }
+  for (let y = 0; y < h; y++) { tryPush(y * w, -1); tryPush(y * w + w - 1, -1); }
   let removed = 0;
   while (stack.length) {
     const p = stack.pop();
     d[p * 4 + 3] = 0; removed++;
     const x = p % w, y = (p / w) | 0;
-    if (x > 0) tryPush(p - 1);
-    if (x < w - 1) tryPush(p + 1);
-    if (y > 0) tryPush(p - w);
-    if (y < h - 1) tryPush(p + w);
+    if (x > 0) tryPush(p - 1, p);
+    if (x < w - 1) tryPush(p + 1, p);
+    if (y > 0) tryPush(p - w, p);
+    if (y < h - 1) tryPush(p + w, p);
   }
   // kenar yumuşatma: silinen alana komşu, arka plana yakın pikselleri yarı saydam yap
   for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
@@ -636,6 +650,30 @@ $('#btnBol').onclick = async () => {
   for (let i = 0; i < parts.length; i++) await saveToGallery(parts[i], `${WS.name} ${i + 1}`, 'parça');
   toast(parts.length + ' figür galeriye kaydedildi');
   pushHistory(); WS.canvas = parts[0]; drawWorkshop();
+};
+async function aiRemoveBg(c) {
+  const { url, key } = modalCfg();
+  if (!url) throw new Error('Modal motor adresi yok');
+  const b64 = (await canvasToDataURL(c)).split(',')[1];
+  const r = await fetch(url.replace(/\/+$/, '') + '/rembg', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Sprite-Key': key },
+    body: JSON.stringify({ image: b64 }),
+  });
+  if (r.status === 401) throw new Error('Motor anahtarı yanlış');
+  if (!r.ok) throw new Error('Modal hatası ' + r.status);
+  const d = await r.json();
+  const bin = Uint8Array.from(atob(d.image), ch => ch.charCodeAt(0));
+  return blobToCanvas(new Blob([bin], { type: 'image/png' }));
+}
+function canvasToDataURL(c) { return Promise.resolve(c.toDataURL('image/png')); }
+$('#btnArkaAI').onclick = async () => {
+  if (!needWS()) return;
+  const b = $('#btnArkaAI'); b.disabled = true; const t = b.textContent; b.textContent = 'Siliniyor...';
+  try {
+    const out = await aiRemoveBg(WS.canvas);
+    pushHistory(); WS.canvas = out; drawWorkshop(); toast('Arka plan silindi (yapay zekâ)');
+  } catch (e) { toast('Olmadı: ' + e.message + ' — normal silmeyi dene', 4000); }
+  finally { b.disabled = false; b.textContent = t; }
 };
 $('#btnKirp').onclick = () => { if (!needWS()) return; pushHistory(); WS.canvas = trimCanvas(WS.canvas); drawWorkshop(); };
 $('#btnPixel').onclick = () => {

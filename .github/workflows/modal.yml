@@ -68,7 +68,7 @@ jobs:
             START=$(date +%s)
             curl -sS --max-time 600 -X POST "$MOTOR_URL/generate" \
               -H "Content-Type: application/json" -H "X-Sprite-Key: $SPRITE_KEY" \
-              -d '{"prompt":"pixel art, green zombie, full body 2D game sprite, side view, plain white background","seed":42,"n":2,"size":1024,"style":"pixel"}' \
+              -d '{"prompt":"pixel art, green zombie, solo, one single character alone, full body 2D game character, side view, plain white background","seed":42,"n":2,"width":832,"height":1216,"style":"pixel","transparent":true}' \
               -o out.json
             END=$(date +%s)
             python3 - "$i" "$((END-START))" <<'PY'
