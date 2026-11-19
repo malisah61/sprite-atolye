@@ -132,7 +132,7 @@ class Motor:
             n = max(1, min(4, int(body.get("n", 1))))
             size = max(512, min(1024, int(body.get("size", 1024)) // 64 * 64))
             style = str(body.get("style", "pixel"))
-            negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters"))[:500]
+            negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters, character sheet, multiple views, duplicate, turnaround, ground shadow"))[:500]
             return self._run(prompt, negative, seed, n, size, style)
 
         return api
