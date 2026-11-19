@@ -1,0 +1,61 @@
+:root{
+  --bg:#14161c; --panel:#1d2029; --panel2:#262a35; --line:#323746;
+  --text:#e8e6e1; --muted:#9aa0ad; --acc:#f2b134; --acc2:#47c1a8; --bad:#e5604f;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 12px 0}
+.brand{display:flex;align-items:center;gap:8px;font-size:17px;margin-bottom:8px}
+.logo{width:22px;height:22px;image-rendering:pixelated;background:
+  linear-gradient(var(--acc),var(--acc)) 4px 3px/14px 9px no-repeat,
+  linear-gradient(var(--acc2),var(--acc2)) 6px 13px/10px 7px no-repeat}
+nav{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+nav button{flex:0 0 auto;background:none;border:0;color:var(--muted);padding:9px 12px;border-bottom:2px solid transparent;font:inherit;cursor:pointer}
+nav button.on{color:var(--text);border-color:var(--acc)}
+main{max-width:900px;margin:0 auto;padding:12px}
+.tab{display:none}.tab.on{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+h3{font-size:14px;margin:18px 0 8px;color:var(--acc)}
+label{display:block;font-size:13px;color:var(--muted);margin:8px 0 4px}
+.row label,label:has(input[type=checkbox]){display:flex;align-items:center;gap:6px;margin:0}
+input,select,textarea{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:inherit}
+input[type=checkbox]{width:auto}
+input[type=color]{width:44px;height:36px;padding:2px}
+input[type=range]{flex:1;padding:0}
+textarea{resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+.row input:not([type]){flex:1}
+button,.filebtn{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 14px;font:inherit;cursor:pointer}
+.filebtn{display:inline-block;color:var(--text)!important;font-size:15px!important;margin:0!important}
+button.primary{background:var(--acc);color:#1b1406;border-color:var(--acc);font-weight:600}
+button:disabled{opacity:.5}
+#btnUret{width:100%;margin-top:12px;padding:12px}
+details{margin-top:8px}summary{color:var(--muted);cursor:pointer}
+.hint{color:var(--muted);font-size:13px;margin:8px 0 0}
+.results{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.results.small{grid-template-columns:repeat(auto-fill,minmax(80px,1fr));max-height:60vh;overflow:auto;padding:4px}
+.item{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;position:relative}
+.item.sel{outline:3px solid var(--acc)}
+.item .img{aspect-ratio:1;display:flex;align-items:center;justify-content:center}
+.item img,.item canvas{max-width:100%;max-height:100%;image-rendering:pixelated}
+.item .meta{padding:6px 8px;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .acts{display:flex;gap:4px;padding:0 6px 6px}
+.item .acts button{flex:1;padding:6px 4px;font-size:12px}
+.item .wait{padding:20px;text-align:center;color:var(--muted);font-size:13px}
+.checker{background-color:#2a2e3a;background-image:
+  linear-gradient(45deg,#353a48 25%,transparent 25%),linear-gradient(-45deg,#353a48 25%,transparent 25%),
+  linear-gradient(45deg,transparent 75%,#353a48 75%),linear-gradient(-45deg,transparent 75%,#353a48 75%);
+  background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0}
+.stage{border-radius:10px;min-height:120px;display:flex;align-items:center;justify-content:center;padding:10px;margin:10px 0;overflow:auto}
+.stage canvas{max-width:100%;max-height:60vh;image-rendering:pixelated}
+.stage.small{min-height:80px}
+.strip{display:flex;gap:6px;overflow-x:auto;padding:4px 0;min-height:10px}
+.strip canvas{height:56px;image-rendering:pixelated;background:#2a2e3a;border-radius:6px;flex:0 0 auto}
+.strip.editable canvas{cursor:pointer}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px;width:min(94vw,640px);padding:12px}
+dialog::backdrop{background:#000a}
+.dlghead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.dlghead button{padding:4px 10px}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#000d;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:20;max-width:90vw;text-align:center}
+#toast.on{opacity:1}

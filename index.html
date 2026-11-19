@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sprite Atölye</title>
+<meta name="theme-color" content="#14161c">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'><rect width='16' height='16' fill='%2314161c'/><rect x='4' y='3' width='8' height='6' fill='%23f2b134'/><rect x='5' y='5' width='2' height='2' fill='%2314161c'/><rect x='9' y='5' width='2' height='2' fill='%2314161c'/><rect x='5' y='9' width='6' height='4' fill='%2347c1a8'/></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo"></span><b>Sprite Atölye</b></div>
+  <nav id="tabs">
+    <button data-tab="uret" class="on">Üret</button>
+    <button data-tab="atolye">Atölye</button>
+    <button data-tab="anim">Animasyon</button>
+    <button data-tab="sheet">Sheet</button>
+    <button data-tab="galeri">Galeri</button>
+  </nav>
+</header>
+
+<main>
+<!-- ÜRET -->
+<section id="uret" class="tab on">
+  <div class="card">
+    <label>Ne üretelim?</label>
+    <textarea id="prompt" rows="3" placeholder="Örn: yeşil derili, yırtık gömlekli koşan zombi"></textarea>
+    <div class="grid2">
+      <div><label>Tür</label>
+        <select id="tur">
+          <option value="karakter">Karakter</option>
+          <option value="dusman">Düşman / Canavar</option>
+          <option value="esya">Eşya / Silah</option>
+          <option value="ikon">İkon</option>
+          <option value="tile">Zemin dokusu (tile)</option>
+          <option value="bina">Bina / Obje</option>
+          <option value="serbest">Serbest (ek yok)</option>
+        </select></div>
+      <div><label>Stil</label>
+        <select id="stil">
+          <option value="pixel">Pixel art</option>
+          <option value="cartoon">Çizgi film</option>
+          <option value="hd">HD oyun çizimi</option>
+          <option value="chibi">Chibi / sevimli</option>
+          <option value="dark">Karanlık fantastik</option>
+        </select></div>
+      <div><label>Bakış</label>
+        <select id="bakis">
+          <option value="front">Önden</option>
+          <option value="side">Yandan</option>
+          <option value="topdown">Tepeden (top-down)</option>
+          <option value="iso">İzometrik</option>
+          <option value="threequarter">3/4 açı</option>
+        </select></div>
+      <div><label>Aday sayısı</label>
+        <select id="adet">
+          <option>1</option><option selected>2</option><option>3</option><option>4</option>
+        </select></div>
+      <div><label>Seed (boş = rastgele)</label>
+        <input id="seed" type="number" placeholder="rastgele"></div>
+      <div><label>Model</label>
+        <select id="model">
+          <option value="flux">flux (kaliteli)</option>
+          <option value="turbo">turbo (hızlı)</option>
+        </select></div>
+    </div>
+    <details>
+      <summary>Gelişmiş</summary>
+      <label>Stil reçetesi (her prompta eklenir — oyun boyunca aynı tutarsan bütün karakterler aynı oyundan çıkmış gibi olur)</label>
+      <input id="recete" placeholder="Örn: 16-bit SNES palette, thick dark outline">
+      <label>İstemediklerin</label>
+      <input id="negatif" value="text, watermark, multiple characters, cropped, blurry">
+      <label><input type="checkbox" id="ham"> Prompt'u olduğu gibi gönder (Türkçe→İngilizce ek yapma)</label>
+    </details>
+    <button id="btnUret" class="primary">Üret</button>
+    <p class="hint" id="durum">Motor: Pollinations (ücretsiz). Ücretsiz kullanımda iki istek arasında ~15 sn beklenir, sıra otomatik.</p>
+  </div>
+  <div id="sonuclar" class="results"></div>
+</section>
+
+<!-- ATÖLYE -->
+<section id="atolye" class="tab">
+  <div class="card">
+    <div class="row">
+      <label class="filebtn">Resim yükle<input type="file" id="dosya" accept="image/*" hidden></label>
+      <button id="btnGaleridenSec">Galeriden seç</button>
+    </div>
+    <div class="stage checker"><canvas id="cvAtolye"></canvas></div>
+    <p class="hint" id="atolyeBilgi">Önce Üret sekmesinden bir sonuç seç ya da resim yükle.</p>
+
+    <h3>1 · Arka planı sil</h3>
+    <div class="row"><label>Tolerans <output id="oTol">40</output></label><input type="range" id="tol" min="5" max="120" value="40"></div>
+    <div class="row"><button id="btnArka">Arka planı sil</button><button id="btnKirp">Boşlukları kırp</button></div>
+
+    <h3>2 · Pixel art'a çevir</h3>
+    <div class="grid2">
+      <div><label>Boyut (px)</label>
+        <select id="pxBoyut"><option>16</option><option>24</option><option selected>32</option><option>48</option><option>64</option><option>96</option><option>128</option></select></div>
+      <div><label>Renk sayısı</label>
+        <select id="pxRenk"><option>4</option><option>8</option><option selected>16</option><option>24</option><option>32</option><option value="0">Sınırsız</option></select></div>
+    </div>
+    <div class="row"><label><input type="checkbox" id="kontur"> Koyu kontur ekle</label><input type="color" id="konturRenk" value="#1a1420"></div>
+    <div class="row"><button id="btnPixel">Pixel art yap</button><button id="btnGeri">Geri al</button></div>
+
+    <h3>3 · Kaydet</h3>
+    <div class="row">
+      <button id="btnKaydet" class="primary">Galeriye kaydet</button>
+      <button id="btnIndir">PNG indir</button>
+      <button id="btnAnimeGonder">Animasyona gönder</button>
+    </div>
+  </div>
+</section>
+
+<!-- ANİMASYON -->
+<section id="anim" class="tab">
+  <div class="card">
+    <p class="hint">Tek bir sprite'tan kodla animasyon üretir: kareler her zaman tutarlıdır (yapay zekâ her karede karakteri değiştirmez).</p>
+    <div class="row"><button id="btnAnimSec">Galeriden sprite seç</button></div>
+    <div class="grid2">
+      <div><label>Hareket</label>
+        <select id="animTur">
+          <option value="idle">Bekleme (nefes)</option>
+          <option value="walk">Yürüme (zıplayarak)</option>
+          <option value="run">Koşma</option>
+          <option value="attack">Saldırı (ileri atılma)</option>
+          <option value="hit">Hasar alma</option>
+          <option value="death">Ölüm</option>
+          <option value="float">Süzülme (uçan/hayalet)</option>
+          <option value="spin">Dönme (eşya/para)</option>
+        </select></div>
+      <div><label>Kare sayısı</label>
+        <select id="animKare"><option>4</option><option selected>6</option><option>8</option><option>12</option></select></div>
+      <div><label>FPS</label><input id="animFps" type="number" value="8" min="1" max="30"></div>
+      <div><label>Yön</label>
+        <select id="animYon"><option value="1">Sağa bakıyor</option><option value="-1">Sola bakıyor</option></select></div>
+    </div>
+    <div class="row"><button id="btnAnimUret" class="primary">Animasyonu oluştur</button></div>
+    <div class="stage checker"><canvas id="cvAnim"></canvas></div>
+    <div class="strip" id="animKareler"></div>
+    <div class="row">
+      <button id="btnAnimSheet">Sheet'e ekle</button>
+      <button id="btnAnimGaleri">Kareleri galeriye kaydet</button>
+    </div>
+  </div>
+</section>
+
+<!-- SHEET -->
+<section id="sheet" class="tab">
+  <div class="card">
+    <p class="hint">Kareleri sırayla ekle → tek bir sprite sheet PNG + Godot/Unity için JSON indir.</p>
+    <div class="row"><button id="btnSheetEkle">Galeriden kare ekle</button><button id="btnSheetTemizle">Temizle</button></div>
+    <div class="strip editable" id="sheetKareler"></div>
+    <div class="grid2">
+      <div><label>Sütun</label><input id="sheetSutun" type="number" value="6" min="1" max="64"></div>
+      <div><label>Boşluk (px)</label><input id="sheetBosluk" type="number" value="0" min="0" max="16"></div>
+      <div><label>Animasyon adı</label><input id="sheetAd" value="walk"></div>
+      <div><label>FPS</label><input id="sheetFps" type="number" value="8" min="1" max="60"></div>
+    </div>
+    <div class="row"><button id="btnSheetYap" class="primary">Sheet oluştur</button></div>
+    <div class="stage checker"><canvas id="cvSheet"></canvas></div>
+    <div class="stage checker small"><canvas id="cvSheetOnizle"></canvas></div>
+    <div class="row">
+      <button id="btnSheetPng">PNG indir</button>
+      <button id="btnSheetJson">JSON indir</button>
+      <button id="btnSheetTres">Godot .tres indir</button>
+    </div>
+  </div>
+</section>
+
+<!-- GALERİ -->
+<section id="galeri" class="tab">
+  <div class="card">
+    <div class="row"><input id="galeriAra" placeholder="Ara..."><button id="btnGaleriZip">Hepsini indir</button></div>
+    <p class="hint">Galeri bu tarayıcıda saklanır (cihazında). Önemli işleri indirmeyi unutma.</p>
+  </div>
+  <div id="galeriListe" class="results"></div>
+</section>
+</main>
+
+<!-- Galeri seçici -->
+<dialog id="secici">
+  <div class="dlghead"><b id="seciciBaslik">Seç</b><button id="seciciKapat">✕</button></div>
+  <div id="seciciListe" class="results small"></div>
+  <div class="row"><button id="seciciTamam" class="primary">Tamam</button></div>
+</dialog>
+
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

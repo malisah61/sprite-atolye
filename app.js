@@ -1,0 +1,780 @@
+/* Sprite Atölye — v0.1
+   Ücretsiz oyun asset üretici: Pollinations ile üretim, tarayıcıda işleme.
+   Motorlar ENGINES içinde; ileride Modal (kendi GPU motorumuz) buraya eklenecek. */
+'use strict';
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+/* ---------------- Genel yardımcılar ---------------- */
+function toast(msg, ms = 2600) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('on'), ms);
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function newCanvas(w, h) {
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, w | 0);
+  c.height = Math.max(1, h | 0);
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = false;
+  return c;
+}
+function cloneCanvas(src) {
+  const c = newCanvas(src.width, src.height);
+  c.getContext('2d').drawImage(src, 0, 0);
+  return c;
+}
+function showScaled(canvas, maxPx = 480) {
+  const m = Math.max(canvas.width, canvas.height);
+  const scale = m >= maxPx ? maxPx / m : Math.max(1, Math.floor(maxPx / m));
+  canvas.style.width = Math.round(canvas.width * scale) + 'px';
+  canvas.style.height = 'auto';
+}
+function canvasToBlob(c) {
+  return new Promise(r => c.toBlob(r, 'image/png'));
+}
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+async function blobToCanvas(blob) {
+  const bmp = await createImageBitmap(blob);
+  const c = newCanvas(bmp.width, bmp.height);
+  c.getContext('2d').drawImage(bmp, 0, 0);
+  bmp.close && bmp.close();
+  return c;
+}
+function slug(s) {
+  return (s || 'sprite').toLowerCase()
+    .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'sprite';
+}
+
+/* ---------------- Sekmeler ---------------- */
+function openTab(id) {
+  $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === id));
+  $$('.tab').forEach(s => s.classList.toggle('on', s.id === id));
+  if (id === 'galeri') renderGallery();
+  window.scrollTo(0, 0);
+}
+$$('#tabs button').forEach(b => b.onclick = () => openTab(b.dataset.tab));
+
+/* ---------------- Galeri (IndexedDB) ---------------- */
+const DB = {
+  db: null,
+  open() {
+    if (this.db) return Promise.resolve(this.db);
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('sprite-atolye', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('items', { keyPath: 'id', autoIncrement: true });
+      r.onsuccess = () => { this.db = r.result; res(this.db); };
+      r.onerror = () => rej(r.error);
+    });
+  },
+  async tx(mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const t = db.transaction('items', mode);
+      const st = t.objectStore('items');
+      const out = fn(st);
+      t.oncomplete = () => res(out && out.result !== undefined ? out.result : out);
+      t.onerror = () => rej(t.error);
+    });
+  },
+  add(item) { return this.tx('readwrite', s => s.add(item)); },
+  del(id) { return this.tx('readwrite', s => s.delete(id)); },
+  all() { return this.tx('readonly', s => s.getAll()); },
+};
+async function saveToGallery(canvas, name, tags = '') {
+  const blob = await canvasToBlob(canvas);
+  await DB.add({ name: name || 'sprite', tags, blob, w: canvas.width, h: canvas.height, t: Date.now() });
+}
+
+let galleryURLs = [];
+async function renderGallery() {
+  const list = $('#galeriListe');
+  galleryURLs.forEach(u => URL.revokeObjectURL(u));
+  galleryURLs = [];
+  const q = $('#galeriAra').value.trim().toLowerCase();
+  const items = (await DB.all()).filter(i => !q || (i.name + ' ' + i.tags).toLowerCase().includes(q)).reverse();
+  list.innerHTML = items.length ? '' : '<p class="hint">Galeri boş. Üret ya da Atölye\'den kaydet.</p>';
+  for (const it of items) {
+    const url = URL.createObjectURL(it.blob);
+    galleryURLs.push(url);
+    const d = document.createElement('div');
+    d.className = 'item';
+    d.innerHTML = `<div class="img checker"><img src="${url}" alt=""></div>
+      <div class="meta">${escapeHtml(it.name)} · ${it.w}×${it.h}</div>
+      <div class="acts"><button data-a="at">Atölye</button><button data-a="in">İndir</button><button data-a="sil">Sil</button></div>`;
+    d.querySelector('[data-a=at]').onclick = async () => { loadIntoWorkshop(await blobToCanvas(it.blob), it.name); openTab('atolye'); };
+    d.querySelector('[data-a=in]').onclick = () => downloadBlob(it.blob, slug(it.name) + '.png');
+    d.querySelector('[data-a=sil]').onclick = async () => { if (confirm('Silinsin mi?')) { await DB.del(it.id); renderGallery(); } };
+    list.appendChild(d);
+  }
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+$('#galeriAra').oninput = () => renderGallery();
+
+/* Galeri seçici (tek ya da çoklu) */
+function pickFromGallery(title, multi) {
+  return new Promise(async resolve => {
+    const dlg = $('#secici');
+    $('#seciciBaslik').textContent = title;
+    const box = $('#seciciListe');
+    box.innerHTML = '';
+    const items = (await DB.all()).reverse();
+    if (!items.length) { toast('Galeri boş'); return resolve([]); }
+    const chosen = [];
+    const urls = [];
+    for (const it of items) {
+      const url = URL.createObjectURL(it.blob); urls.push(url);
+      const d = document.createElement('div');
+      d.className = 'item';
+      d.innerHTML = `<div class="img checker"><img src="${url}" alt=""></div><div class="meta">${escapeHtml(it.name)}</div>`;
+      d.onclick = () => {
+        if (!multi) { chosen.length = 0; $$('.item', box).forEach(x => x.classList.remove('sel')); }
+        const i = chosen.indexOf(it);
+        if (i >= 0) { chosen.splice(i, 1); d.classList.remove('sel'); }
+        else { chosen.push(it); d.classList.add('sel'); }
+        if (multi) d.querySelector('.meta').textContent = (chosen.indexOf(it) + 1 || '') + ' ' + it.name;
+      };
+      box.appendChild(d);
+    }
+    const done = val => { dlg.close(); urls.forEach(u => URL.revokeObjectURL(u)); resolve(val); };
+    $('#seciciTamam').onclick = () => done(chosen.slice());
+    $('#seciciKapat').onclick = () => done([]);
+    dlg.showModal();
+  });
+}
+
+/* ---------------- Üretim motorları ---------------- */
+const TUR = {
+  karakter: 'full body 2D game character sprite, single character, centered, whole body visible',
+  dusman: 'full body 2D game enemy creature sprite, single creature, centered, whole body visible',
+  esya: 'single 2D game item asset, one object, centered',
+  ikon: 'single game UI icon, simple readable shapes, centered',
+  tile: 'seamless tileable game ground texture, pattern fills the entire image edge to edge',
+  bina: 'single 2D game building or prop asset, one object, centered',
+  serbest: '',
+};
+const STIL = {
+  pixel: 'pixel art, crisp pixels, limited color palette, retro game sprite',
+  cartoon: '2D cartoon game art, clean bold outlines, flat colors',
+  hd: 'high quality 2D game art, hand painted, detailed shading',
+  chibi: 'cute chibi style 2D game art, big head small body, clean outlines',
+  dark: 'dark fantasy 2D game art, moody desaturated colors, strong outlines',
+};
+const BAKIS = {
+  front: 'front view facing the camera',
+  side: 'side view profile facing right',
+  topdown: 'top-down view seen from directly above',
+  iso: 'isometric view',
+  threequarter: 'three-quarter view',
+};
+const BG = 'isolated on a plain flat solid white background, no shadow, no ground, no scenery';
+
+const trCache = new Map();
+async function toEnglish(text) {
+  if (!/[^\x00-\x7F]/.test(text) && !/\b(ve|bir|ile|olan)\b/i.test(text)) return text;
+  if (trCache.has(text)) return trCache.get(text);
+  try {
+    const ac = new AbortController();
+    const to = setTimeout(() => ac.abort(), 12000);
+    const q = 'Translate this game asset description from Turkish to English. Reply with only the English translation, nothing else: ' + text;
+    const r = await fetch('https://text.pollinations.ai/' + encodeURIComponent(q), { signal: ac.signal });
+    clearTimeout(to);
+    if (r.ok) {
+      const out = (await r.text()).trim().replace(/^["']|["']$/g, '');
+      if (out && out.length < 500) { trCache.set(text, out); return out; }
+    }
+  } catch (e) { /* çeviri olmazsa Türkçe gönderilir */ }
+  return text;
+}
+
+function buildPrompt(desc, o) {
+  const parts = [desc];
+  if (o.tur !== 'serbest') {
+    parts.push(TUR[o.tur], STIL[o.stil]);
+    if (o.tur !== 'tile') parts.push(BAKIS[o.bakis], BG);
+    else parts.push('top-down', STIL[o.stil]);
+  }
+  if (o.recete) parts.push(o.recete);
+  if (o.negatif) parts.push('without ' + o.negatif);
+  return parts.filter(Boolean).join(', ');
+}
+
+const ENGINES = {
+  pollinations: {
+    name: 'Pollinations',
+    minGap: 16000,
+    async generate({ prompt, seed, model, size = 1024 }) {
+      const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) +
+        `?width=${size}&height=${size}&seed=${seed}&model=${model}&nologo=true&private=true`;
+      const ac = new AbortController();
+      const to = setTimeout(() => ac.abort(), 150000);
+      try {
+        const r = await fetch(url, { signal: ac.signal });
+        if (r.status === 429) { const e = new Error('Sıra dolu (429)'); e.retry = true; throw e; }
+        if (!r.ok) throw new Error('Sunucu hatası ' + r.status);
+        const blob = await r.blob();
+        if (!blob.type.startsWith('image')) throw new Error('Görsel gelmedi');
+        return blobToCanvas(blob);
+      } finally { clearTimeout(to); }
+    },
+  },
+  // modal: { ... }  ← kendi GPU motorumuz kurulunca buraya eklenecek
+};
+let engine = ENGINES.pollinations;
+
+/* Sıra: ücretsiz katmanda istekler arası bekleme */
+const queue = [];
+let lastStart = 0, running = false;
+function enqueue(job) { queue.push(job); runQueue(); }
+async function runQueue() {
+  if (running) return;
+  running = true;
+  while (queue.length) {
+    const job = queue.shift();
+    let wait = lastStart + engine.minGap - Date.now();
+    while (wait > 0) {
+      job.onWait(Math.ceil(wait / 1000));
+      await sleep(Math.min(1000, wait));
+      wait = lastStart + engine.minGap - Date.now();
+    }
+    job.onStart();
+    lastStart = Date.now();
+    try {
+      job.onDone(await engine.generate(job.params));
+    } catch (e) {
+      if (e.retry && !job.retried) { job.retried = true; lastStart = Date.now() + 5000; queue.unshift(job); }
+      else job.onError(e);
+    }
+  }
+  running = false;
+  $('#durum').textContent = 'Hazır. Motor: ' + engine.name + ' (ücretsiz).';
+}
+
+$('#btnUret').onclick = async () => {
+  const desc = $('#prompt').value.trim();
+  if (!desc) return toast('Önce ne üretileceğini yaz');
+  const o = {
+    tur: $('#tur').value, stil: $('#stil').value, bakis: $('#bakis').value,
+    recete: $('#recete').value.trim(), negatif: $('#negatif').value.trim(),
+  };
+  localStorage.setItem('sa-recete', o.recete);
+  const n = +$('#adet').value;
+  const model = $('#model').value;
+  const seedIn = $('#seed').value;
+  const baseSeed = seedIn ? +seedIn : Math.floor(Math.random() * 1e9);
+  $('#durum').textContent = 'Hazırlanıyor...';
+  const en = $('#ham').checked ? desc : await toEnglish(desc);
+  const prompt = buildPrompt(en, o);
+  for (let i = 0; i < n; i++) {
+    const seed = baseSeed + i;
+    const card = document.createElement('div');
+    card.className = 'item';
+    card.innerHTML = `<div class="img checker"><div class="wait">Sırada...</div></div><div class="meta" title="${escapeHtml(prompt)}">${escapeHtml(desc)} · seed ${seed}</div>`;
+    $('#sonuclar').prepend(card);
+    const w = card.querySelector('.wait');
+    enqueue({
+      params: { prompt, seed, model },
+      onWait: s => { w.textContent = `Sırada · ${s} sn`; $('#durum').textContent = `Ücretsiz sıra: ${queue.length + 1} iş bekliyor`; },
+      onStart: () => { w.textContent = 'Üretiliyor...'; },
+      onDone: c => {
+        const box = card.querySelector('.img');
+        box.innerHTML = '';
+        box.appendChild(c);
+        const acts = document.createElement('div');
+        acts.className = 'acts';
+        acts.innerHTML = '<button data-a="at">Atölye</button><button data-a="kay">Kaydet</button><button data-a="in">İndir</button>';
+        acts.querySelector('[data-a=at]').onclick = () => { loadIntoWorkshop(cloneCanvas(c), desc); openTab('atolye'); };
+        acts.querySelector('[data-a=kay]').onclick = async () => { await saveToGallery(c, desc, prompt); toast('Galeriye kaydedildi'); };
+        acts.querySelector('[data-a=in]').onclick = async () => downloadBlob(await canvasToBlob(c), slug(desc) + '-' + seed + '.png');
+        card.appendChild(acts);
+      },
+      onError: e => { w.textContent = 'Hata: ' + e.message + ' — tekrar dene'; },
+    });
+  }
+};
+$('#recete').value = localStorage.getItem('sa-recete') || '';
+
+/* ---------------- Atölye ---------------- */
+const WS = { canvas: null, name: 'sprite', history: [] };
+function loadIntoWorkshop(c, name) {
+  WS.canvas = c;
+  WS.name = name || 'sprite';
+  WS.history = [];
+  drawWorkshop();
+}
+function pushHistory() {
+  WS.history.push(cloneCanvas(WS.canvas));
+  if (WS.history.length > 15) WS.history.shift();
+}
+function drawWorkshop() {
+  const v = $('#cvAtolye');
+  if (!WS.canvas) return;
+  v.width = WS.canvas.width; v.height = WS.canvas.height;
+  const ctx = v.getContext('2d'); ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, v.width, v.height);
+  ctx.drawImage(WS.canvas, 0, 0);
+  showScaled(v);
+  $('#atolyeBilgi').textContent = `${WS.name} · ${WS.canvas.width}×${WS.canvas.height} px`;
+}
+function needWS() { if (!WS.canvas) { toast('Önce bir görsel seç'); return false; } return true; }
+
+$('#dosya').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  loadIntoWorkshop(await blobToCanvas(f), f.name.replace(/\.\w+$/, ''));
+  e.target.value = '';
+};
+$('#btnGaleridenSec').onclick = async () => {
+  const [it] = await pickFromGallery('Atölyeye görsel seç', false);
+  if (it) loadIntoWorkshop(await blobToCanvas(it.blob), it.name);
+};
+$('#tol').oninput = e => $('#oTol').textContent = e.target.value;
+
+/* Arka plan silme: kenarlardan başlayan taşma doldurma (flood fill) */
+function removeBackground(c, tol) {
+  const w = c.width, h = c.height;
+  const ctx = c.getContext('2d');
+  const id = ctx.getImageData(0, 0, w, h), d = id.data;
+  // kenar piksellerinin medyan rengi = arka plan
+  const rs = [], gs = [], bs = [];
+  const sample = (x, y) => { const i = (y * w + x) * 4; if (d[i + 3] > 0) { rs.push(d[i]); gs.push(d[i + 1]); bs.push(d[i + 2]); } };
+  for (let x = 0; x < w; x += 2) { sample(x, 0); sample(x, h - 1); }
+  for (let y = 0; y < h; y += 2) { sample(0, y); sample(w - 1, y); }
+  if (!rs.length) return 0;
+  const med = a => a.sort((p, q) => p - q)[a.length >> 1];
+  const br = med(rs), bg = med(gs), bb = med(bs);
+  const dist = i => Math.sqrt((d[i] - br) ** 2 + (d[i + 1] - bg) ** 2 + (d[i + 2] - bb) ** 2);
+  const seen = new Uint8Array(w * h);
+  const stack = [];
+  const tryPush = p => { if (!seen[p]) { const i = p * 4; if (d[i + 3] === 0 || dist(i) < tol) { seen[p] = 1; stack.push(p); } } };
+  for (let x = 0; x < w; x++) { tryPush(x); tryPush((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { tryPush(y * w); tryPush(y * w + w - 1); }
+  let removed = 0;
+  while (stack.length) {
+    const p = stack.pop();
+    d[p * 4 + 3] = 0; removed++;
+    const x = p % w, y = (p / w) | 0;
+    if (x > 0) tryPush(p - 1);
+    if (x < w - 1) tryPush(p + 1);
+    if (y > 0) tryPush(p - w);
+    if (y < h - 1) tryPush(p + w);
+  }
+  // kenar yumuşatma: silinen alana komşu, arka plana yakın pikselleri yarı saydam yap
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const p = y * w + x, i = p * 4;
+    if (seen[p] || d[i + 3] === 0) continue;
+    if (seen[p - 1] || seen[p + 1] || seen[p - w] || seen[p + w]) {
+      const k = dist(i) / (tol * 2);
+      if (k < 1) d[i + 3] = Math.round(d[i + 3] * Math.max(0, k));
+    }
+  }
+  ctx.putImageData(id, 0, 0);
+  return removed / (w * h);
+}
+
+function trimCanvas(c, pad = 1) {
+  const w = c.width, h = c.height;
+  const d = c.getContext('2d').getImageData(0, 0, w, h).data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (d[(y * w + x) * 4 + 3] > 16) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  }
+  if (x1 < 0) return c;
+  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad);
+  x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
+  const out = newCanvas(x1 - x0 + 1, y1 - y0 + 1);
+  out.getContext('2d').drawImage(c, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  return out;
+}
+
+/* Pixel art: alfa ağırlıklı küçültme + k-means palet + kontur */
+function pixelate(src, size, colors, outline, outlineHex) {
+  const sw = src.width, sh = src.height;
+  const s = size / Math.max(sw, sh);
+  const tw = Math.max(1, Math.round(sw * s)), th = Math.max(1, Math.round(sh * s));
+  const sd = src.getContext('2d').getImageData(0, 0, sw, sh).data;
+  const pad = outline ? 1 : 0;
+  const out = newCanvas(tw + pad * 2, th + pad * 2);
+  const octx = out.getContext('2d');
+  const od = octx.createImageData(out.width, out.height);
+  const o = od.data;
+  const W = out.width;
+  for (let ty = 0; ty < th; ty++) {
+    const sy0 = Math.floor(ty * sh / th), sy1 = Math.max(sy0 + 1, Math.floor((ty + 1) * sh / th));
+    for (let tx = 0; tx < tw; tx++) {
+      const sx0 = Math.floor(tx * sw / tw), sx1 = Math.max(sx0 + 1, Math.floor((tx + 1) * sw / tw));
+      let r = 0, g = 0, b = 0, a = 0, n = 0;
+      for (let y = sy0; y < sy1; y++) for (let x = sx0; x < sx1; x++) {
+        const i = (y * sw + x) * 4, al = sd[i + 3];
+        r += sd[i] * al; g += sd[i + 1] * al; b += sd[i + 2] * al; a += al; n++;
+      }
+      const j = ((ty + pad) * W + tx + pad) * 4;
+      if (a / n >= 110) {
+        o[j] = r / a; o[j + 1] = g / a; o[j + 2] = b / a; o[j + 3] = 255;
+      }
+    }
+  }
+  if (colors > 0) quantize(o, colors);
+  if (outline) {
+    const oc = hexToRgb(outlineHex);
+    const H = out.height;
+    const solid = p => o[p * 4 + 3] === 255;
+    const mark = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const p = y * W + x;
+      if (o[p * 4 + 3] === 255) continue;
+      if ((x > 0 && solid(p - 1)) || (x < W - 1 && solid(p + 1)) || (y > 0 && solid(p - W)) || (y < H - 1 && solid(p + W))) mark[p] = 1;
+    }
+    for (let p = 0; p < W * H; p++) if (mark[p]) { const j = p * 4; o[j] = oc[0]; o[j + 1] = oc[1]; o[j + 2] = oc[2]; o[j + 3] = 255; }
+  }
+  octx.putImageData(od, 0, 0);
+  return out;
+}
+function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+
+function quantize(o, k) {
+  const px = [];
+  for (let i = 0; i < o.length; i += 4) if (o[i + 3] === 255) px.push(i);
+  if (px.length <= k) return;
+  // k-means++ benzeri başlangıç
+  const cents = [];
+  const first = px[(Math.random() * px.length) | 0];
+  cents.push([o[first], o[first + 1], o[first + 2]]);
+  const dmin = new Float64Array(px.length).fill(Infinity);
+  while (cents.length < k) {
+    const c = cents[cents.length - 1];
+    let sum = 0;
+    for (let n = 0; n < px.length; n++) {
+      const i = px[n];
+      const dd = (o[i] - c[0]) ** 2 + (o[i + 1] - c[1]) ** 2 + (o[i + 2] - c[2]) ** 2;
+      if (dd < dmin[n]) dmin[n] = dd;
+      sum += dmin[n];
+    }
+    let r = Math.random() * sum, pick = px[0];
+    for (let n = 0; n < px.length; n++) { r -= dmin[n]; if (r <= 0) { pick = px[n]; break; } }
+    cents.push([o[pick], o[pick + 1], o[pick + 2]]);
+  }
+  const assign = new Uint16Array(px.length);
+  for (let it = 0; it < 12; it++) {
+    const acc = cents.map(() => [0, 0, 0, 0]);
+    for (let n = 0; n < px.length; n++) {
+      const i = px[n];
+      let best = 0, bd = Infinity;
+      for (let c = 0; c < k; c++) {
+        const C = cents[c];
+        const dd = (o[i] - C[0]) ** 2 + (o[i + 1] - C[1]) ** 2 + (o[i + 2] - C[2]) ** 2;
+        if (dd < bd) { bd = dd; best = c; }
+      }
+      assign[n] = best;
+      const A = acc[best]; A[0] += o[i]; A[1] += o[i + 1]; A[2] += o[i + 2]; A[3]++;
+    }
+    acc.forEach((A, c) => { if (A[3]) cents[c] = [A[0] / A[3], A[1] / A[3], A[2] / A[3]]; });
+  }
+  for (let n = 0; n < px.length; n++) {
+    const i = px[n], C = cents[assign[n]];
+    o[i] = Math.round(C[0]); o[i + 1] = Math.round(C[1]); o[i + 2] = Math.round(C[2]);
+  }
+}
+
+$('#btnArka').onclick = () => {
+  if (!needWS()) return;
+  pushHistory();
+  const r = removeBackground(WS.canvas, +$('#tol').value);
+  drawWorkshop();
+  toast(r > 0.95 ? 'Neredeyse her şey silindi — toleransı düşür' : r < 0.02 ? 'Pek bir şey silinmedi — toleransı artır' : 'Arka plan silindi');
+};
+$('#btnKirp').onclick = () => { if (!needWS()) return; pushHistory(); WS.canvas = trimCanvas(WS.canvas); drawWorkshop(); };
+$('#btnPixel').onclick = () => {
+  if (!needWS()) return;
+  pushHistory();
+  WS.canvas = pixelate(trimCanvas(WS.canvas, 0), +$('#pxBoyut').value, +$('#pxRenk').value, $('#kontur').checked, $('#konturRenk').value);
+  drawWorkshop();
+};
+$('#btnGeri').onclick = () => { if (WS.history.length) { WS.canvas = WS.history.pop(); drawWorkshop(); } else toast('Geri alınacak adım yok'); };
+$('#btnKaydet').onclick = async () => { if (!needWS()) return; await saveToGallery(WS.canvas, WS.name); toast('Galeriye kaydedildi'); };
+$('#btnIndir').onclick = async () => { if (!needWS()) return; downloadBlob(await canvasToBlob(WS.canvas), slug(WS.name) + '.png'); };
+$('#btnAnimeGonder').onclick = () => { if (!needWS()) return; AN.src = cloneCanvas(WS.canvas); AN.name = WS.name; openTab('anim'); buildAnimation(); };
+
+/* ---------------- Kodla animasyon ---------------- */
+const AN = { src: null, name: 'sprite', frames: [], timer: null };
+$('#btnAnimSec').onclick = async () => {
+  const [it] = await pickFromGallery('Animasyon için sprite seç', false);
+  if (it) { AN.src = await blobToCanvas(it.blob); AN.name = it.name; buildAnimation(); }
+};
+$('#btnAnimUret').onclick = () => { if (!AN.src) return toast('Önce sprite seç'); buildAnimation(); };
+
+function animTransform(kind, t, i, n, dir, w, h) {
+  // dönüş: {dx, dy, rot, sx, sy, alpha, flash}
+  const T = { dx: 0, dy: 0, rot: 0, sx: 1, sy: 1, alpha: 1, flash: 0 };
+  const TAU = Math.PI * 2;
+  switch (kind) {
+    case 'idle': {
+      const k = 0.5 - 0.5 * Math.cos(TAU * t);
+      T.sy = 1 - 0.05 * k; T.sx = 1 + 0.025 * k; break;
+    }
+    case 'walk': {
+      T.dy = -Math.abs(Math.sin(TAU * t)) * h * 0.06;
+      T.rot = Math.sin(TAU * t) * 0.07 * dir;
+      break;
+    }
+    case 'run': {
+      const b = Math.abs(Math.sin(TAU * t));
+      T.dy = -b * h * 0.11;
+      T.rot = (0.12 + Math.sin(TAU * t) * 0.05) * dir;
+      T.sy = 1 - (1 - b) * 0.06; T.sx = 1 + (1 - b) * 0.04;
+      break;
+    }
+    case 'attack': {
+      if (t < 0.4) { const e = t / 0.4; T.dx = -w * 0.08 * e * dir; T.rot = -0.12 * e * dir; }
+      else if (t < 0.6) { const e = (t - 0.4) / 0.2; T.dx = (-0.08 + 0.3 * e) * w * dir; T.rot = (-0.12 + 0.32 * e) * dir; T.sx = 1 + 0.08 * e; }
+      else { const e = (t - 0.6) / 0.4; T.dx = 0.22 * (1 - e) * w * dir; T.rot = 0.2 * (1 - e) * dir; T.sx = 1 + 0.08 * (1 - e); }
+      break;
+    }
+    case 'hit': {
+      T.dx = (i % 2 ? 1 : -1) * w * 0.06 * (1 - t) - w * 0.05 * dir * (1 - t);
+      T.rot = -0.1 * dir * (1 - t);
+      T.flash = i < Math.max(1, Math.round(n / 3)) ? 0.85 : 0;
+      break;
+    }
+    case 'death': {
+      const e = Math.min(1, t / 0.7);
+      const ease = 1 - (1 - e) * (1 - e);
+      T.rot = ease * Math.PI / 2 * -dir;
+      T.dy = ease * h * 0.05;
+      T.alpha = t > 0.7 ? 1 - (t - 0.7) / 0.3 * 0.8 : 1;
+      T.flash = i === 0 ? 0.7 : 0;
+      break;
+    }
+    case 'float': {
+      T.dy = Math.sin(TAU * t) * h * 0.07;
+      T.rot = Math.sin(TAU * t + 1) * 0.04;
+      break;
+    }
+    case 'spin': {
+      let c = Math.cos(TAU * t);
+      if (Math.abs(c) < 0.12) c = 0.12 * Math.sign(c || 1);
+      T.sx = c; break;
+    }
+  }
+  return T;
+}
+
+function buildAnimation() {
+  if (!AN.src) return;
+  const kind = $('#animTur').value, n = +$('#animKare').value, dir = +$('#animYon').value;
+  const w = AN.src.width, h = AN.src.height;
+  const pad = Math.ceil(Math.max(w, h) * (kind === 'death' ? 0.6 : kind === 'attack' || kind === 'run' ? 0.35 : 0.2));
+  const FW = w + pad * 2, FH = h + pad * 2;
+  const footX = FW / 2, footY = pad + h;
+  // beyaz flaş için hazır kopya
+  const white = newCanvas(w, h);
+  const wctx = white.getContext('2d');
+  wctx.drawImage(AN.src, 0, 0);
+  wctx.globalCompositeOperation = 'source-in';
+  wctx.fillStyle = '#fff'; wctx.fillRect(0, 0, w, h);
+
+  AN.frames = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / n;
+    const T = animTransform(kind, t, i, n, dir, w, h);
+    const f = newCanvas(FW, FH);
+    const c = f.getContext('2d');
+    c.imageSmoothingEnabled = false;
+    // death'te dönüş merkezi ayak yerine gövde ortası
+    const pivotY = kind === 'death' ? footY - h * 0.3 : footY;
+    c.translate(Math.round(footX + T.dx), Math.round(pivotY + T.dy));
+    c.rotate(T.rot);
+    c.scale(T.sx, T.sy);
+    c.globalAlpha = T.alpha;
+    const ox = -w / 2, oy = -h + (footY - pivotY);
+    c.drawImage(AN.src, Math.round(ox), Math.round(oy));
+    if (T.flash) { c.globalAlpha = T.flash * T.alpha; c.drawImage(white, Math.round(ox), Math.round(oy)); }
+    AN.frames.push(cleanAlpha(f));
+  }
+  renderAnimStrip();
+  playAnim();
+}
+/* Döndürme sonrası yarı saydam pikselleri temizle (pixel art net kalsın) */
+function cleanAlpha(c) {
+  const ctx = c.getContext('2d');
+  const id = ctx.getImageData(0, 0, c.width, c.height), d = id.data;
+  for (let i = 3; i < d.length; i += 4) d[i] = d[i] >= 100 ? (d[i] > 230 ? 255 : d[i]) : 0;
+  ctx.putImageData(id, 0, 0);
+  return c;
+}
+function renderAnimStrip() {
+  const s = $('#animKareler'); s.innerHTML = '';
+  AN.frames.forEach(f => { const c = cloneCanvas(f); s.appendChild(c); });
+}
+function playAnim() {
+  clearInterval(AN.timer);
+  if (!AN.frames.length) return;
+  const v = $('#cvAnim');
+  v.width = AN.frames[0].width; v.height = AN.frames[0].height;
+  showScaled(v, 320);
+  const ctx = v.getContext('2d');
+  let k = 0;
+  const fps = Math.max(1, Math.min(30, +$('#animFps').value || 8));
+  AN.timer = setInterval(() => {
+    ctx.clearRect(0, 0, v.width, v.height);
+    ctx.drawImage(AN.frames[k % AN.frames.length], 0, 0);
+    k++;
+  }, 1000 / fps);
+}
+['#animTur', '#animKare', '#animYon'].forEach(s => $(s).onchange = () => AN.src && buildAnimation());
+$('#animFps').onchange = playAnim;
+$('#btnAnimSheet').onclick = () => {
+  if (!AN.frames.length) return toast('Önce animasyon oluştur');
+  SH.frames.push(...AN.frames.map(cloneCanvas));
+  $('#sheetAd').value = $('#animTur').value;
+  $('#sheetFps').value = $('#animFps').value;
+  $('#sheetSutun').value = AN.frames.length;
+  SH.name = AN.name;
+  renderSheetStrip();
+  openTab('sheet');
+  buildSheet();
+};
+$('#btnAnimGaleri').onclick = async () => {
+  if (!AN.frames.length) return toast('Önce animasyon oluştur');
+  const kind = $('#animTur').value;
+  for (let i = 0; i < AN.frames.length; i++) await saveToGallery(AN.frames[i], `${AN.name} ${kind} ${i + 1}`, 'kare');
+  toast(AN.frames.length + ' kare kaydedildi');
+};
+
+/* ---------------- Sprite sheet ---------------- */
+const SH = { frames: [], sheet: null, meta: null, name: 'sprite', timer: null };
+$('#btnSheetEkle').onclick = async () => {
+  const items = await pickFromGallery('Kareleri sırayla seç', true);
+  for (const it of items) SH.frames.push(await blobToCanvas(it.blob));
+  if (items.length) SH.name = items[0].name.replace(/\s*\d+$/, '');
+  renderSheetStrip();
+};
+$('#btnSheetTemizle').onclick = () => { SH.frames = []; renderSheetStrip(); };
+function renderSheetStrip() {
+  const s = $('#sheetKareler'); s.innerHTML = '';
+  SH.frames.forEach((f, i) => {
+    const c = cloneCanvas(f);
+    c.title = 'Kaldırmak için dokun';
+    c.onclick = () => { SH.frames.splice(i, 1); renderSheetStrip(); toast('Kare kaldırıldı'); };
+    s.appendChild(c);
+  });
+  if (!SH.frames.length) s.innerHTML = '<p class="hint">Kare yok.</p>';
+}
+function buildSheet() {
+  if (!SH.frames.length) return toast('Önce kare ekle');
+  const cols = Math.max(1, +$('#sheetSutun').value || 1);
+  const sp = Math.max(0, +$('#sheetBosluk').value || 0);
+  const cw = Math.max(...SH.frames.map(f => f.width));
+  const ch = Math.max(...SH.frames.map(f => f.height));
+  const rows = Math.ceil(SH.frames.length / cols);
+  const realCols = Math.min(cols, SH.frames.length);
+  const sheet = newCanvas(realCols * cw + (realCols - 1) * sp, rows * ch + (rows - 1) * sp);
+  const ctx = sheet.getContext('2d');
+  const frames = [];
+  SH.frames.forEach((f, i) => {
+    const x = (i % cols) * (cw + sp), y = Math.floor(i / cols) * (ch + sp);
+    // alt-orta hizalama (ayaklar aynı çizgide)
+    ctx.drawImage(f, x + Math.floor((cw - f.width) / 2), y + (ch - f.height));
+    frames.push({ x, y, w: cw, h: ch });
+  });
+  const anim = slug($('#sheetAd').value || 'anim').replace(/-/g, '_');
+  const fps = Math.max(1, +$('#sheetFps').value || 8);
+  SH.sheet = sheet;
+  SH.meta = {
+    image: `${slug(SH.name)}_${anim}.png`, animation: anim, fps, loop: !/death|olum/.test(anim),
+    frameWidth: cw, frameHeight: ch, columns: realCols, rows, spacing: sp, frameCount: frames.length, frames,
+  };
+  const v = $('#cvSheet');
+  v.width = sheet.width; v.height = sheet.height;
+  v.getContext('2d').drawImage(sheet, 0, 0);
+  showScaled(v, 640);
+  // önizleme
+  clearInterval(SH.timer);
+  const p = $('#cvSheetOnizle'); p.width = cw; p.height = ch; showScaled(p, 200);
+  const pc = p.getContext('2d'); let k = 0;
+  SH.timer = setInterval(() => {
+    const fr = frames[k++ % frames.length];
+    pc.clearRect(0, 0, cw, ch);
+    pc.drawImage(sheet, fr.x, fr.y, cw, ch, 0, 0, cw, ch);
+  }, 1000 / fps);
+}
+$('#btnSheetYap').onclick = buildSheet;
+$('#btnSheetPng').onclick = async () => { if (!SH.sheet) return toast('Önce sheet oluştur'); downloadBlob(await canvasToBlob(SH.sheet), SH.meta.image); };
+$('#btnSheetJson').onclick = () => {
+  if (!SH.meta) return toast('Önce sheet oluştur');
+  downloadBlob(new Blob([JSON.stringify(SH.meta, null, 2)], { type: 'application/json' }), SH.meta.image.replace('.png', '.json'));
+};
+function godotTres(meta, resPath) {
+  const n = meta.frames.length;
+  let s = `[gd_resource type="SpriteFrames" load_steps=${n + 2} format=3]\n\n`;
+  s += `[ext_resource type="Texture2D" path="${resPath}" id="1_tex"]\n\n`;
+  meta.frames.forEach((f, i) => {
+    s += `[sub_resource type="AtlasTexture" id="AtlasTexture_${i}"]\natlas = ExtResource("1_tex")\nregion = Rect2(${f.x}, ${f.y}, ${f.w}, ${f.h})\n\n`;
+  });
+  s += `[resource]\nanimations = [{\n"frames": [`;
+  s += meta.frames.map((_, i) => `{\n"duration": 1.0,\n"texture": SubResource("AtlasTexture_${i}")\n}`).join(', ');
+  s += `],\n"loop": ${meta.loop},\n"name": &"${meta.animation}",\n"speed": ${meta.fps.toFixed(1)}\n}]\n`;
+  return s;
+}
+$('#btnSheetTres').onclick = () => {
+  if (!SH.meta) return toast('Önce sheet oluştur');
+  const path = 'res://assets/sprites/' + SH.meta.image;
+  downloadBlob(new Blob([godotTres(SH.meta, path)], { type: 'text/plain' }), SH.meta.image.replace('.png', '.tres'));
+  toast('PNG\'yi Godot projesinde ' + path + ' yoluna koy', 4000);
+};
+
+/* ---------------- ZIP (sıkıştırmasız) — galeriyi tek dosyada indir ---------------- */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(files) {
+  const enc = new TextEncoder();
+  const chunks = [], central = [];
+  let off = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), data = f.data, crc = crc32(data);
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true);
+    lh.setUint32(14, crc, true); lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true);
+    lh.setUint16(26, name.length, true);
+    chunks.push(new Uint8Array(lh.buffer), name, data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
+    ch.setUint32(16, crc, true); ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true);
+    ch.setUint16(28, name.length, true); ch.setUint32(42, off, true);
+    central.push(new Uint8Array(ch.buffer), name);
+    off += 30 + name.length + data.length;
+  }
+  const csize = central.reduce((s, c) => s + c.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, csize, true); end.setUint32(16, off, true);
+  return new Blob([...chunks, ...central, new Uint8Array(end.buffer)], { type: 'application/zip' });
+}
+$('#btnGaleriZip').onclick = async () => {
+  const items = await DB.all();
+  if (!items.length) return toast('Galeri boş');
+  const used = new Set();
+  const files = [];
+  for (const it of items) {
+    let nm = slug(it.name), k = 1;
+    while (used.has(nm)) nm = slug(it.name) + '-' + (++k);
+    used.add(nm);
+    files.push({ name: nm + '.png', data: new Uint8Array(await it.blob.arrayBuffer()) });
+  }
+  downloadBlob(makeZip(files), 'sprite-atolye-galeri.zip');
+};
+
+/* Başlangıç */
+renderSheetStrip();
