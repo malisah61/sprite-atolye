@@ -254,6 +254,15 @@ class Motor:
 
         rgb = np.array(im.convert("RGB"))
         bg = border_bg(rgb)
+        # kenarlar düz renk değilse (desenli arka plan, çerçeve, sahne) parçalamak yerine tam resmi ver
+        w = 24
+        edge = np.concatenate([rgb[:w].reshape(-1, 3), rgb[-w:].reshape(-1, 3),
+                               rgb[:, :w].reshape(-1, 3), rgb[:, -w:].reshape(-1, 3)]).astype(np.int32)
+        busy = float((np.sqrt(((edge - np.median(edge, axis=0)) ** 2).sum(-1)) > 40).mean())
+        self.last_plain = busy < 0.15  # kenar şeridinin %15'inden fazlası arka plandan farklıysa: desen/çerçeve/sahne
+        if not self.last_plain:
+            self.last_bg = None
+            return im.convert("RGBA")
         raw = remove(im.convert("RGB"), session=self.rb, post_process_mask=True)
         out = fill_holes(rgb, raw, bg)
         self.last_bg = bg
@@ -285,17 +294,18 @@ class Motor:
             generator=gens,
         ).images
         imgs = []
-        grids = []
+        grids, plains = [], []
         for im in out:
             if transparent or auto:
                 im = self._cut(im)
+                plains.append(getattr(self, "last_plain", True))
             if auto:
                 im, k = auto_clean(im, style, getattr(self, "last_bg", None), native)
                 grids.append(k)
             buf = io.BytesIO()
             im.save(buf, format="PNG")
             imgs.append(base64.b64encode(buf.getvalue()).decode())
-        return {"images": imgs, "grid": grids, "seconds": round(time.time() - t0, 2)}
+        return {"images": imgs, "grid": grids, "plain": plains, "seconds": round(time.time() - t0, 2)}
 
     @modal.asgi_app()
     def web(self):
@@ -331,7 +341,7 @@ class Motor:
             width = clamp(body.get("width", size))
             height = clamp(body.get("height", size))
             style = str(body.get("style", "pixel"))
-            negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters, character sheet, multiple views, duplicate, turnaround, ground shadow, cast shadow, drop shadow, shadow under feet"))[:500]
+            negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters, character sheet, multiple views, duplicate, turnaround, ground shadow, cast shadow, drop shadow, shadow under feet, frame, border, card frame, ornamental background, patterned background, wallpaper, scenery, landscape"))[:500]
             transparent = bool(body.get("transparent", False))
             auto = bool(body.get("auto", False))
             native = bool(body.get("native", False))

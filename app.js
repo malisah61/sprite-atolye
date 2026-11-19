@@ -350,6 +350,7 @@ const ENGINES = {
         if (r.status === 401) throw new Error('Motor anahtarı yanlış');
         if (!r.ok) throw new Error('Modal hatası ' + r.status);
         const d = await r.json();
+        if (d.plain && d.plain[0] === false) toast('Model desenli/çerçeveli arka plan çizdi; tam resim olarak verildi. Atölye\'de "Otomatik temizle" ya da yeniden üret.', 5000);
         const bin = Uint8Array.from(atob(d.images[0]), ch => ch.charCodeAt(0));
         return blobToCanvas(new Blob([bin], { type: 'image/png' }));
       } finally { clearTimeout(to); }
