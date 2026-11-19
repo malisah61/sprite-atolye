@@ -180,7 +180,18 @@ const BAKIS = {
   iso: 'isometric view',
   threequarter: 'three-quarter view',
 };
-const BG = 'isolated on a plain flat solid medium gray background, no shadow, no ground, no scenery';
+/* Arka plan rengi: karakterde geçen renklerle çakışmayan ilk renk (aynı renk kıyafet silinmesin) */
+const BG_SECENEK = [
+  ['medium gray', /\b(gray|grey|silver|gri|gümüş|gumus|steel|metal|ash)\b/i],
+  ['white', /\b(white|beyaz|snow|kar|pale|ivory|cream)\b/i],
+  ['light sky blue', /\b(blue|mavi|cyan|turquoise|turkuaz|sky|ice|buz|water|su)\b/i],
+  ['pale pink', /\b(pink|pembe|rose|red|kırmızı|kirmizi)\b/i],
+];
+function pickBg(text) {
+  for (const [renk, re] of BG_SECENEK) if (!re.test(text)) return renk;
+  return 'medium gray';
+}
+const bgText = renk => `isolated on a plain flat solid ${renk} background, no shadow, no ground, no scenery`;
 
 const trCache = new Map();
 async function toEnglish(text) {
@@ -232,7 +243,7 @@ function buildPrompt(desc, o) {
   parts.push(desc);
   if (o.tur !== 'serbest') {
     parts.push(TUR[o.tur], STIL[o.stil]);
-    if (o.tur !== 'tile') parts.push(BAKIS[o.bakis], BG);
+    if (o.tur !== 'tile') parts.push(BAKIS[o.bakis], bgText(pickBg(desc + ' ' + (o.ham || ''))));
     else parts.push('top-down', STIL[o.stil]);
   }
   if (o.recete) parts.push(o.recete);
@@ -372,7 +383,7 @@ $('#btnUret').onclick = async () => {
   const baseSeed = seedIn ? +seedIn : Math.floor(Math.random() * 1e9);
   $('#durum').textContent = 'Hazırlanıyor...';
   const en = $('#ham').checked ? desc : await toEnglish(desc);
-  const prompt = buildPrompt(en, o);
+  const prompt = buildPrompt(en, { ...o, ham: desc });
   $('#durum').textContent = 'Gönderilen: ' + en;
   for (let i = 0; i < n; i++) {
     const seed = baseSeed + i;
