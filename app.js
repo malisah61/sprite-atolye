@@ -231,9 +231,64 @@ const ENGINES = {
       } finally { clearTimeout(to); }
     },
   },
-  // modal: { ... }  ← kendi GPU motorumuz kurulunca buraya eklenecek
+  modal: {
+    name: 'Modal (kendi GPU)',
+    minGap: 0,
+    async generate({ prompt, seed, stil, negatif }) {
+      const { url, key } = modalCfg();
+      const ac = new AbortController();
+      const to = setTimeout(() => ac.abort(), 300000);
+      try {
+        const r = await fetch(url.replace(/\/+$/, '') + '/generate', {
+          method: 'POST', signal: ac.signal,
+          headers: { 'Content-Type': 'application/json', 'X-Sprite-Key': key },
+          body: JSON.stringify({ prompt, seed, n: 1, size: 1024, style: stil === 'pixel' ? 'pixel' : 'other', negative: negatif || undefined }),
+        });
+        if (r.status === 401) throw new Error('Motor anahtarı yanlış');
+        if (!r.ok) throw new Error('Modal hatası ' + r.status);
+        const d = await r.json();
+        const bin = Uint8Array.from(atob(d.images[0]), ch => ch.charCodeAt(0));
+        return blobToCanvas(new Blob([bin], { type: 'image/png' }));
+      } finally { clearTimeout(to); }
+    },
+  },
 };
-let engine = ENGINES.pollinations;
+const DEFAULT_MODAL_URL = '';
+function modalCfg() {
+  return {
+    url: (localStorage.getItem('sa-modal-url') || DEFAULT_MODAL_URL).trim(),
+    key: (localStorage.getItem('sa-modal-key') || '').trim(),
+  };
+}
+function pickEngine() {
+  const m = localStorage.getItem('sa-motor') || 'auto';
+  const { url } = modalCfg();
+  if (m === 'pollinations' || !url) return ENGINES.pollinations;
+  return ENGINES.modal;
+}
+let engine = pickEngine();
+$('#motorSec').value = localStorage.getItem('sa-motor') || 'auto';
+$('#modalUrl').value = modalCfg().url;
+$('#modalKey').value = modalCfg().key;
+function saveMotor() {
+  localStorage.setItem('sa-motor', $('#motorSec').value);
+  localStorage.setItem('sa-modal-url', $('#modalUrl').value.trim());
+  localStorage.setItem('sa-modal-key', $('#modalKey').value.trim());
+  engine = pickEngine();
+  $('#durum').textContent = 'Motor: ' + engine.name;
+}
+['#motorSec', '#modalUrl', '#modalKey'].forEach(s => $(s).onchange = saveMotor);
+$('#btnMotorTest').onclick = async () => {
+  saveMotor();
+  const { url } = modalCfg();
+  if (!url) return toast('Önce motor adresini yaz');
+  toast('Motor uyandırılıyor, 1-2 dk sürebilir...', 5000);
+  try {
+    const r = await fetch(url.replace(/\/+$/, '') + '/');
+    const d = await r.json();
+    toast(d.ok ? 'Motor çalışıyor: ' + d.motor : 'Beklenmeyen cevap', 4000);
+  } catch (e) { toast('Bağlanamadı: ' + e.message, 4000); }
+};
 
 /* Sıra: ücretsiz katmanda istekler arası bekleme */
 const queue = [];
@@ -244,18 +299,24 @@ async function runQueue() {
   running = true;
   while (queue.length) {
     const job = queue.shift();
-    let wait = lastStart + engine.minGap - Date.now();
+    const gap = (job.engine || engine).minGap;
+    let wait = lastStart + gap - Date.now();
     while (wait > 0) {
       job.onWait(Math.ceil(wait / 1000));
       await sleep(Math.min(1000, wait));
-      wait = lastStart + engine.minGap - Date.now();
+      wait = lastStart + gap - Date.now();
     }
     job.onStart();
     lastStart = Date.now();
+    const eng = job.engine || engine;
     try {
-      job.onDone(await engine.generate(job.params));
+      job.onDone(await eng.generate(job.params));
     } catch (e) {
-      if (e.retry && !job.retried) { job.retried = true; lastStart = Date.now() + 5000; queue.unshift(job); }
+      const auto = (localStorage.getItem('sa-motor') || 'auto') === 'auto';
+      if (eng === ENGINES.modal && auto && !job.fellBack) {
+        job.fellBack = true; job.engine = ENGINES.pollinations; queue.unshift(job);
+        toast('Modal cevap vermedi, Pollinations\'a geçildi');
+      } else if (e.retry && !job.retried) { job.retried = true; lastStart = Date.now() + 5000; queue.unshift(job); }
       else job.onError(e);
     }
   }
@@ -286,7 +347,7 @@ $('#btnUret').onclick = async () => {
     $('#sonuclar').prepend(card);
     const w = card.querySelector('.wait');
     enqueue({
-      params: { prompt, seed, model },
+      params: { prompt, seed, model, stil: o.stil, negatif: o.negatif },
       onWait: s => { w.textContent = `Sırada · ${s} sn`; $('#durum').textContent = `Ücretsiz sıra: ${queue.length + 1} iş bekliyor`; },
       onStart: () => { w.textContent = 'Üretiliyor...'; },
       onDone: c => {

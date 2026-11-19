@@ -73,6 +73,20 @@
       <input id="negatif" value="text, watermark, multiple characters, cropped, blurry">
       <label><input type="checkbox" id="ham"> Prompt'u olduğu gibi gönder (Türkçe→İngilizce ek yapma)</label>
     </details>
+    <details id="motorAyar">
+      <summary>Motor ayarları</summary>
+      <label>Motor</label>
+      <select id="motorSec">
+        <option value="auto">Otomatik (Modal varsa Modal, yoksa Pollinations)</option>
+        <option value="modal">Sadece Modal (kendi GPU'muz)</option>
+        <option value="pollinations">Sadece Pollinations (ücretsiz)</option>
+      </select>
+      <label>Modal motor adresi</label>
+      <input id="modalUrl" placeholder="https://...modal.run">
+      <label>Motor anahtarı (SPRITE_KEY)</label>
+      <input id="modalKey" type="password" placeholder="GitHub'a eklediğin şifre">
+      <div class="row"><button id="btnMotorTest">Bağlantıyı dene</button></div>
+    </details>
     <button id="btnUret" class="primary">Üret</button>
     <p class="hint" id="durum">Motor: Pollinations (ücretsiz). Ücretsiz kullanımda iki istek arasında ~15 sn beklenir, sıra otomatik.</p>
   </div>

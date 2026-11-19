@@ -1,0 +1,90 @@
+name: Modal motorunu kur
+
+on:
+  push:
+    branches: [main]
+    paths: ['modal/**', '.github/workflows/modal.yml']
+  workflow_dispatch:
+    inputs:
+      test:
+        description: 'Kurulumdan sonra deneme üretimi yap'
+        type: boolean
+        default: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      SPRITE_KEY: ${{ secrets.SPRITE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Secret kontrolü
+        id: chk
+        run: |
+          if [ -z "$MODAL_TOKEN_ID" ] || [ -z "$MODAL_TOKEN_SECRET" ]; then
+            echo "::warning::MODAL_TOKEN_ID / MODAL_TOKEN_SECRET eklenmemiş — kurulum atlandı."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -z "$SPRITE_KEY" ]; then echo "::warning::SPRITE_KEY yok — motor herkese açık olur!"; fi
+
+      - uses: actions/setup-python@v5
+        if: steps.chk.outputs.ok == 'true'
+        with:
+          python-version: '3.11'
+
+      - name: Modal kur
+        if: steps.chk.outputs.ok == 'true'
+        run: pip install --quiet modal
+
+      - name: Anahtarı Modal'a yükle
+        if: steps.chk.outputs.ok == 'true'
+        run: modal secret create sprite-key "SPRITE_KEY=${SPRITE_KEY}" --force
+
+      - name: Motoru kur (deploy)
+        if: steps.chk.outputs.ok == 'true'
+        run: |
+          modal deploy modal/app.py 2>&1 | tee deploy.log
+          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.modal\.run' deploy.log | head -1)
+          echo "MOTOR_URL=$URL" >> "$GITHUB_ENV"
+          echo "### Motor adresi: $URL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deneme üretimi (süre ölçümü)
+        if: steps.chk.outputs.ok == 'true' && (github.event_name == 'push' || inputs.test)
+        run: |
+          set -e
+          echo "Sağlık kontrolü (soğuk başlangıç uzun sürebilir)..."
+          curl -sS --max-time 600 "$MOTOR_URL/" ; echo
+          for i in 1 2; do
+            START=$(date +%s)
+            curl -sS --max-time 600 -X POST "$MOTOR_URL/generate" \
+              -H "Content-Type: application/json" -H "X-Sprite-Key: $SPRITE_KEY" \
+              -d '{"prompt":"pixel art, green zombie, full body 2D game sprite, side view, plain white background","seed":42,"n":2,"size":1024,"style":"pixel"}' \
+              -o out.json
+            END=$(date +%s)
+            python3 - "$i" "$((END-START))" <<'PY'
+          import json, sys, base64
+          d = json.load(open("out.json"))
+          if "images" not in d:
+              print("HATA:", d); sys.exit(1)
+          for k, im in enumerate(d["images"]):
+              open(f"test_{sys.argv[1]}_{k}.png", "wb").write(base64.b64decode(im))
+          msg = f"Deneme {sys.argv[1]}: {len(d['images'])} görsel, GPU süresi {d['seconds']} sn, toplam {sys.argv[2]} sn"
+          print(msg)
+          open(__import__('os').environ['GITHUB_STEP_SUMMARY'], 'a').write(f"- {msg}\n")
+          PY
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: steps.chk.outputs.ok == 'true' && always()
+        with:
+          name: deneme-gorselleri
+          path: |
+            test_*.png
+            deploy.log
+          if-no-files-found: ignore
