@@ -254,10 +254,15 @@ class Motor:
 
         rgb = np.array(im.convert("RGB"))
         bg = border_bg(rgb)
-        out = remove(im.convert("RGB"), session=self.rb, post_process_mask=True)
-        out = fill_holes(rgb, out, bg)
+        raw = remove(im.convert("RGB"), session=self.rb, post_process_mask=True)
+        out = fill_holes(rgb, raw, bg)
         self.last_bg = bg
-        return drop_debris(defringe(out, bg=bg))
+        final = drop_debris(defringe(out, bg=bg))
+        # güvenlik: temizlik figürün büyük kısmını yediyse (arka plan rengi karaktere çok benziyorsa) ham kesime dön
+        area = lambda x: int((np.array(x)[..., 3] > 0).sum())
+        if area(final) < 0.6 * max(1, area(out)):
+            return drop_debris(out)
+        return final
 
     def _run(self, prompt, negative, seed, n, width, height, style, transparent=False, auto=False, native=False):
         import base64
