@@ -39,6 +39,33 @@ def download_rembg():
     new_session("isnet-general-use")
 
 
+def defringe(im, passes=12):
+    """Kenardaki açık gri/beyaz hale piksellerini ve yer gölgesini temizler, alfayı netleştirir."""
+    import numpy as np
+    from PIL import Image
+
+    a = np.array(im.convert("RGBA")).astype(np.int16)
+    rgb, al = a[..., :3], a[..., 3]
+    al[al < 110] = 0
+    al[al >= 110] = 255
+    mx, mn = rgb.max(-1), rgb.min(-1)
+    sat = (mx - mn) / np.maximum(mx, 1)
+    pale = (sat < 0.22) & (mx > 115)  # beyaz/gri arka plan kalıntısı
+    for _ in range(passes):
+        solid = al > 0
+        nb = np.zeros_like(solid)
+        nb[1:, :] |= ~solid[:-1, :]
+        nb[:-1, :] |= ~solid[1:, :]
+        nb[:, 1:] |= ~solid[:, :-1]
+        nb[:, :-1] |= ~solid[:, 1:]
+        edge = solid & nb & pale
+        if not edge.any():
+            break
+        al[edge] = 0
+    a[..., 3] = al
+    return Image.fromarray(a.astype(np.uint8), "RGBA")
+
+
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install(
@@ -92,7 +119,8 @@ class Motor:
         """Yapay zekâ ile arka plan silme (gölge dahil) → RGBA."""
         from rembg import remove
 
-        return remove(im.convert("RGB"), session=self.rb, post_process_mask=True)
+        out = remove(im.convert("RGB"), session=self.rb, post_process_mask=True)
+        return defringe(out)
 
     def _run(self, prompt, negative, seed, n, width, height, style, transparent=False):
         import base64
