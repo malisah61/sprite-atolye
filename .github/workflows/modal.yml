@@ -11,6 +11,9 @@ on:
         type: boolean
         default: true
 
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -80,6 +83,18 @@ jobs:
           open(__import__('os').environ['GITHUB_STEP_SUMMARY'], 'a').write(f"- {msg}\n")
           PY
           done
+
+      - name: Deneme görsellerini repoya kaydet (deneme-sonuclari dalı)
+        if: steps.chk.outputs.ok == 'true' && always()
+        run: |
+          ls test_*.png >/dev/null 2>&1 || exit 0
+          mkdir -p /tmp/out && cp test_*.png /tmp/out/
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          git fetch origin deneme-sonuclari 2>/dev/null && git checkout -B deneme-sonuclari origin/deneme-sonuclari || git checkout --orphan deneme-sonuclari
+          git rm -rq --cached . 2>/dev/null || true
+          find . -maxdepth 1 ! -name . ! -name .git -exec rm -rf {} +
+          D="deneme/$(date -u +%Y%m%d-%H%M%S)"; mkdir -p "$D"; cp /tmp/out/*.png "$D/"
+          git add deneme && git commit -qm "Deneme görselleri $D" && git push -q origin deneme-sonuclari
 
       - uses: actions/upload-artifact@v4
         if: steps.chk.outputs.ok == 'true' && always()
