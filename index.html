@@ -53,6 +53,8 @@
           <option value="iso">İzometrik</option>
           <option value="threequarter">3/4 açı</option>
         </select></div>
+      <div id="cinsKutu"><label>Cinsiyet</label>
+        <select id="cins"><option value="">Farketmez</option><option value="erkek">Erkek</option><option value="kadin">Kadın</option></select></div>
       <div><label>Aday sayısı</label>
         <select id="adet">
           <option>1</option><option selected>2</option><option>3</option><option>4</option>
@@ -71,7 +73,7 @@
       <input id="recete" placeholder="Örn: 16-bit SNES palette, thick dark outline">
       <label>İstemediklerin</label>
       <input id="negatif" value="text, watermark, multiple characters, character sheet, multiple views, duplicate, cropped, blurry">
-      <label><input type="checkbox" id="ham"> Prompt'u olduğu gibi gönder (Türkçe→İngilizce ek yapma)</label>
+      <label><input type="checkbox" id="ham"> Tarifi yorumlama, olduğu gibi gönder</label>
     </details>
     <details id="motorAyar">
       <summary>Motor ayarları</summary>
@@ -87,6 +89,10 @@
       <input id="modalKey" type="password" placeholder="GitHub'a eklediğin şifre">
       <div class="row"><button id="btnMotorTest">Bağlantıyı dene</button></div>
     </details>
+    <div id="yorumKutu" hidden>
+      <label>Modele giden tarif (yapay zekâ yorumu — beğenmezsen düzelt, sonra tekrar Üret)</label>
+      <textarea id="yorum" rows="3"></textarea>
+    </div>
     <label><input type="checkbox" id="seffaf" checked> Otomatik temizle: arka plan, gölge, kalıntılar, kırpma; pixel art ise gerçek piksel boyutu</label>
     <button id="btnUret" class="primary">Üret</button>
     <p class="hint" id="durum">Motor: Pollinations (ücretsiz). Ücretsiz kullanımda iki istek arasında ~15 sn beklenir, sıra otomatik.</p>

@@ -194,22 +194,34 @@ function pickBg(text) {
 const bgText = renk => `isolated on a plain flat solid ${renk} background, no shadow, no ground, no scenery`;
 
 const trCache = new Map();
-async function toEnglish(text) {
+const TUR_EN = { karakter: 'game character', dusman: 'game enemy creature', esya: 'game item', ikon: 'game icon', tile: 'ground texture', bina: 'game building or prop', serbest: 'image' };
+/* Tarif yorumlayıcı: serbest Türkçe tarifi modelin çizebileceği somut İngilizce özelliklere çevirir */
+async function interpret(text, tur, cins) {
   if (!text.trim()) return text;
-  if (trCache.has(text)) return trCache.get(text);
+  const key = [text, tur, cins].join('|');
+  if (trCache.has(key)) return trCache.get(key);
+  const g = cins === 'erkek' ? 'The character is male (a man or boy). '
+    : cins === 'kadin' ? 'The character is female (a woman or girl). ' : '';
+  const q = `You write prompts for an image model that draws 2D game assets. Convert this Turkish description of a ${TUR_EN[tur] || 'game asset'} into a concise English visual description. ` +
+    'Rules: describe only what can be seen (gender, age, body build, face and expression, hair, skin, clothing with colors, accessories, held items, pose). ' +
+    'Turn abstract traits into visible details (strong -> muscular arms and broad shoulders; capable -> confident stance with a tool belt; slightly tired -> faint dark circles under the eyes; happy -> warm smile). ' +
+    'Keep every concrete detail that is given, never drop one. ' + g +
+    'Do not mention background, art style, lighting or camera. Reply with one line of comma-separated phrases, at most 50 words, nothing else.\n\nDescription: ' + text;
   try {
     const ac = new AbortController();
-    const to = setTimeout(() => ac.abort(), 12000);
-    const q = 'Translate this game asset description from Turkish to English. Reply with only the English translation, nothing else: ' + text;
+    const to = setTimeout(() => ac.abort(), 20000);
     const r = await fetch('https://text.pollinations.ai/' + encodeURIComponent(q), { signal: ac.signal });
     clearTimeout(to);
     if (r.ok) {
-      const out = (await r.text()).trim().replace(/^["']|["']$/g, '');
-      if (out && out.length < 500) { trCache.set(text, out); return out; }
+      let out = (await r.text()).trim().replace(/^["'`]+|["'`]+$/g, '').replace(/\s+/g, ' ');
+      if (out && out.length < 600 && !/^(sorry|i can)/i.test(out)) { trCache.set(key, out); return out; }
     }
-  } catch (e) { /* çeviri olmazsa sözlük kullanılır */ }
-  return dictTranslate(text);
+  } catch (e) { /* olmazsa sözlük kullanılır */ }
+  const fb = dictTranslate(text);
+  return (cins === 'erkek' ? 'man, ' : cins === 'kadin' ? 'woman, ' : '') + fb;
 }
+async function toEnglish(text) { return interpret(text, 'serbest', ''); }
+
 /* Yedek: oyun asset'lerinde sık geçen Türkçe kelimeler */
 const SOZLUK = {
   kedi: 'cat', köpek: 'dog', kopek: 'dog', kurt: 'wolf', ayı: 'bear', tavşan: 'rabbit', fare: 'mouse', kuş: 'bird', at: 'horse',
@@ -367,6 +379,8 @@ async function runQueue() {
   $('#durum').textContent = 'Hazır. Motor: ' + engine.name + ' (ücretsiz).';
 }
 
+let lastDesc = '', lastYorum = '';
+$('#tur').onchange = () => { $('#cinsKutu').hidden = !['karakter', 'dusman'].includes($('#tur').value); };
 $('#btnUret').onclick = async () => {
   const desc = $('#prompt').value.trim();
   if (!desc) return toast('Önce ne üretileceğini yaz');
@@ -382,9 +396,19 @@ $('#btnUret').onclick = async () => {
   const seedIn = $('#seed').value;
   const baseSeed = seedIn ? +seedIn : Math.floor(Math.random() * 1e9);
   $('#durum').textContent = 'Hazırlanıyor...';
-  const en = $('#ham').checked ? desc : await toEnglish(desc);
+  const cins = $('#cins').value;
+  let en;
+  if ($('#ham').checked) en = desc;
+  else if (desc === lastDesc && $('#yorum').value.trim() && $('#yorum').value.trim() !== lastYorum) en = $('#yorum').value.trim(); // elle düzeltilmiş yorum
+  else {
+    $('#durum').textContent = 'Tarif yorumlanıyor...';
+    en = await interpret(desc, o.tur, cins);
+  }
+  lastDesc = desc; lastYorum = en;
+  $('#yorum').value = en;
+  $('#yorumKutu').hidden = false;
   const prompt = buildPrompt(en, { ...o, ham: desc });
-  $('#durum').textContent = 'Gönderilen: ' + en;
+  $('#durum').textContent = 'Üretiliyor...';
   for (let i = 0; i < n; i++) {
     const seed = baseSeed + i;
     const card = document.createElement('div');
