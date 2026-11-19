@@ -253,7 +253,7 @@ const ENGINES = {
     },
   },
 };
-const DEFAULT_MODAL_URL = '';
+const DEFAULT_MODAL_URL = 'https://malisah61--sprite-atolye-motor-web.us-east.modal.run';
 function modalCfg() {
   return {
     url: (localStorage.getItem('sa-modal-url') || DEFAULT_MODAL_URL).trim(),

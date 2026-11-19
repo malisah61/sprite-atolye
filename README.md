@@ -12,7 +12,7 @@
 - **Galeri** — her şey tarayıcıda (IndexedDB) saklanır; hepsi tek ZIP olarak indirilebilir.
 
 ## Yol haritası
-1. Modal üzerinde kendi GPU motorumuz (pixel art LoRA, karakter tutarlılığı) — `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET` secret'ları ile otomatik kurulum.
+1. ✅ Modal GPU motoru (SDXL + pixel-art-xl, T4): https://malisah61--sprite-atolye-motor-web.us-east.modal.run — ~21 sn/görsel (1024px).
 2. Oyun repoları için sipariş sistemi: `assets/siparis.json` → GitHub Actions üretir → repoya ekler.
 3. Tileset (kenar/köşe parçaları), yön setleri (4/8 yön), Godot paket dışa aktarma.
 
