@@ -93,7 +93,7 @@
       <label>Modele giden tarif (yapay zekâ yorumu — beğenmezsen düzelt, sonra tekrar Üret)</label>
       <textarea id="yorum" rows="3"></textarea>
     </div>
-    <label><input type="checkbox" id="seffaf" checked> Otomatik temizle: arka plan, gölge, kalıntılar, kırpma; pixel art ise gerçek piksel boyutu</label>
+    <label><input type="checkbox" id="seffaf" checked> Otomatik temizle: arka plan, gölge, kalıntılar, kırpma</label>
     <button id="btnUret" class="primary">Üret</button>
     <p class="hint" id="durum">Motor: Pollinations (ücretsiz). Ücretsiz kullanımda iki istek arasında ~15 sn beklenir, sıra otomatik.</p>
   </div>
@@ -113,7 +113,7 @@
     <h3>1 · Arka planı sil</h3>
     <div class="row"><label>Tolerans <output id="oTol">40</output></label><input type="range" id="tol" min="5" max="120" value="40"></div>
     <div class="row"><button id="btnArkaAI" class="primary">Otomatik temizle (yapay zekâ)</button></div>
-    <p class="hint">Arka planı, gölgeyi ve kalıntıları siler, kırpar; pixel art ise gerçek piksel boyutuna indirir (Modal, birkaç sn). Normal silme ise düz arka planlar için, internetsiz çalışır:</p>
+    <p class="hint">Arka planı, gölgeyi ve kalıntıları siler, kırpar (Modal, birkaç sn). Küçük oyun boyutu istersen aşağıdaki "Pixel art yap"ı kullan. Normal silme ise düz arka planlar için, internetsiz çalışır:</p>
     <div class="row"><button id="btnArka">Arka planı sil</button><button id="btnKirp">Boşlukları kırp</button><button id="btnBol">Parçalara ayır</button></div>
     <p class="hint">Bir görselde birden çok karakter çıktıysa: önce arka planı sil, sonra "Parçalara ayır" — her biri ayrı sprite olur.</p>
 

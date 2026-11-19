@@ -8,7 +8,8 @@ Uç nokta (POST /generate):
            "style": "pixel" | "other", "negative": str}
   başlık: X-Sprite-Key: <SPRITE_KEY>
            "transparent": bool  → arka planı silinmiş PNG döner
-           "auto": bool         → arka plan + gölge + kalıntı temizliği, kırpma, pixel art ise gerçek piksel boyutuna indirme
+           "auto": bool         → arka plan + gölge + kalıntı temizliği, kırpma (tam çözünürlük)
+           "native": bool       → (isteğe bağlı) pixel art'ı gerçek piksel boyutuna indir
   cevap:  {"images": ["<base64 png>", ...], "seconds": float}
 
 POST /rembg  {"image": "<base64>"} → {"image": "<base64 RGBA png>"}
@@ -185,9 +186,10 @@ def to_native_pixels(im, k):
             out[j, i, 3] = 255
     return Image.fromarray(out, "RGBA")
 
-def auto_clean(im, style, bg=None):
-    """Arka planı silinmiş görseli oyuna hazır hale getirir (ızgara, kalıntı, kırpma)."""
-    if style == "pixel":
+def auto_clean(im, style, bg=None, native=False):
+    """Arka planı silinmiş görseli oyuna hazır hale getirir.
+    Varsayılan: tam çözünürlük, sadece kırpma. native=True ise pixel art gerçek piksel boyutuna indirilir."""
+    if native and style == "pixel":
         k, _ = detect_block(im)
         if k:
             small = to_native_pixels(im, k)
@@ -257,7 +259,7 @@ class Motor:
         self.last_bg = bg
         return drop_debris(defringe(out, bg=bg))
 
-    def _run(self, prompt, negative, seed, n, width, height, style, transparent=False, auto=False):
+    def _run(self, prompt, negative, seed, n, width, height, style, transparent=False, auto=False, native=False):
         import base64
         import io
         import time
@@ -283,7 +285,7 @@ class Motor:
             if transparent or auto:
                 im = self._cut(im)
             if auto:
-                im, k = auto_clean(im, style, getattr(self, "last_bg", None))
+                im, k = auto_clean(im, style, getattr(self, "last_bg", None), native)
                 grids.append(k)
             buf = io.BytesIO()
             im.save(buf, format="PNG")
@@ -327,7 +329,8 @@ class Motor:
             negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters, character sheet, multiple views, duplicate, turnaround, ground shadow, cast shadow, drop shadow, shadow under feet"))[:500]
             transparent = bool(body.get("transparent", False))
             auto = bool(body.get("auto", False))
-            return self._run(prompt, negative, seed, n, width, height, style, transparent, auto)
+            native = bool(body.get("native", False))
+            return self._run(prompt, negative, seed, n, width, height, style, transparent, auto, native)
 
         @api.post("/rembg")
         def rembg(body: dict, x_sprite_key: str = Header(default="")):
@@ -346,7 +349,7 @@ class Motor:
             out = self._cut(im)
             k = None
             if body.get("auto", True):
-                out, k = auto_clean(out, "pixel", getattr(self, "last_bg", None))  # ızgara bulunursa gerçek piksel boyutu, yoksa sadece kırpma
+                out, k = auto_clean(out, "pixel", getattr(self, "last_bg", None), bool(body.get("native", False)))
             buf = io.BytesIO()
             out.save(buf, format="PNG")
             return {"image": base64.b64encode(buf.getvalue()).decode(), "grid": k, "seconds": round(time.time() - t0, 2)}
