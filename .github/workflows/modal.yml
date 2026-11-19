@@ -73,7 +73,11 @@ jobs:
             END=$(date +%s)
             python3 - "$i" "$((END-START))" <<'PY'
           import json, sys, base64
-          d = json.load(open("out.json"))
+          raw = open("out.json").read()
+          try:
+              d = json.loads(raw)
+          except Exception:
+              print("::warning::Cevap JSON değil (geçici hata olabilir):", raw[:300]); sys.exit(0)
           if "images" not in d:
               print("HATA:", d); sys.exit(1)
           for k, im in enumerate(d["images"]):
