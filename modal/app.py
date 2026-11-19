@@ -4,7 +4,7 @@ SDXL + pixel-art-xl LoRA ile oyun asset'i üretir.
 GitHub Actions bu dosyayı `modal deploy modal/app.py` ile kurar.
 
 Uç nokta (POST /generate):
-  istek:  {"prompt": str, "seed": int, "n": 1-4, "size": 512-1024,
+  istek:  {"prompt": str, "seed": int, "n": 1-4, "width"/"height": 512-1216 (veya "size"),
            "style": "pixel" | "other", "negative": str}
   başlık: X-Sprite-Key: <SPRITE_KEY>
   cevap:  {"images": ["<base64 png>", ...], "seconds": float}
@@ -74,7 +74,7 @@ class Motor:
         pipe.enable_vae_slicing()
         self.pipe = pipe
 
-    def _run(self, prompt, negative, seed, n, size, style):
+    def _run(self, prompt, negative, seed, n, width, height, style):
         import base64
         import io
         import time
@@ -89,8 +89,8 @@ class Motor:
             negative_prompt=negative,
             num_inference_steps=22,
             guidance_scale=6.0,
-            width=size,
-            height=size,
+            width=width,
+            height=height,
             num_images_per_prompt=n,
             generator=gens,
         ).images
@@ -130,9 +130,12 @@ class Motor:
                 raise HTTPException(status_code=400, detail="prompt boş")
             seed = int(body.get("seed", 0)) % (2**31)
             n = max(1, min(4, int(body.get("n", 1))))
-            size = max(512, min(1024, int(body.get("size", 1024)) // 64 * 64))
+            size = int(body.get("size", 1024))
+            clamp = lambda v: max(512, min(1216, int(v) // 64 * 64))
+            width = clamp(body.get("width", size))
+            height = clamp(body.get("height", size))
             style = str(body.get("style", "pixel"))
             negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters, character sheet, multiple views, duplicate, turnaround, ground shadow"))[:500]
-            return self._run(prompt, negative, seed, n, size, style)
+            return self._run(prompt, negative, seed, n, width, height, style)
 
         return api
