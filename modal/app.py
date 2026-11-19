@@ -84,6 +84,23 @@ def defringe(im, passes=12, bg=None):
     return Image.fromarray(a.astype(np.uint8), "RGBA")
 
 
+def drop_debris(im, min_frac=0.03):
+    """Ana figüre bağlı olmayan küçük kırıntıları siler (en büyük parçanın %3'ünden küçükler)."""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+
+    a = np.array(im.convert("RGBA"))
+    lab, n = ndimage.label(a[..., 3] > 0, structure=np.ones((3, 3)))
+    if n <= 1:
+        return im
+    sizes = ndimage.sum(np.ones_like(lab), lab, index=np.arange(1, n + 1))
+    keep = np.zeros(n + 1, bool)
+    keep[1:] = sizes >= sizes.max() * min_frac
+    a[~keep[lab], 3] = 0
+    return Image.fromarray(a, "RGBA")
+
+
 def fill_holes(orig_rgb, cut, bg):
     """Karakterin içinde yanlışlıkla silinen yerleri (beyaz gömlek gibi) geri getirir.
     İçeride kalan şeffaf boşluk arka plan rengine benzemiyorsa geri doldurulur."""
@@ -238,7 +255,7 @@ class Motor:
         out = remove(im.convert("RGB"), session=self.rb, post_process_mask=True)
         out = fill_holes(rgb, out, bg)
         self.last_bg = bg
-        return defringe(out, bg=bg)
+        return drop_debris(defringe(out, bg=bg))
 
     def _run(self, prompt, negative, seed, n, width, height, style, transparent=False, auto=False):
         import base64
@@ -307,7 +324,7 @@ class Motor:
             width = clamp(body.get("width", size))
             height = clamp(body.get("height", size))
             style = str(body.get("style", "pixel"))
-            negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters, character sheet, multiple views, duplicate, turnaround, ground shadow"))[:500]
+            negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters, character sheet, multiple views, duplicate, turnaround, ground shadow, cast shadow, drop shadow, shadow under feet"))[:500]
             transparent = bool(body.get("transparent", False))
             auto = bool(body.get("auto", False))
             return self._run(prompt, negative, seed, n, width, height, style, transparent, auto)
