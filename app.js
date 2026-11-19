@@ -196,13 +196,41 @@ const bgText = renk => `isolated on a plain flat solid ${renk} background, no sh
 const trCache = new Map();
 const TUR_EN = { karakter: 'game character', dusman: 'game enemy creature', esya: 'game item', ikon: 'game icon', tile: 'ground texture', bina: 'game building or prop', serbest: 'image' };
 /* Tarif yorumlayıcı: serbest Türkçe tarifi modelin çizebileceği somut İngilizce özelliklere çevirir */
-async function interpret(text, tur, cins) {
-  if (!text.trim()) return text;
-  const key = [text, tur, cins].join('|');
+/* Otomatik tür/bakış — yapay zekâ cevap vermezse kelimelere bakarak */
+function guessTur(t) {
+  t = t.toLocaleLowerCase('tr');
+  if (/(zemin|doku|döşeme|tile|çimen|toprak|parke|duvar dokusu)/.test(t)) return 'tile';
+  if (/(ikon|simge|icon)/.test(t)) return 'ikon';
+  if (/(kılıç|kalkan|iksir|balta|mızrak|yay\b|ok\b|asa|tabanca|tüfek|sandık|anahtar|altın|para|mücevher|yüzük|kitap|eşya|silah|zırh parçası)/.test(t)) return 'esya';
+  if (/(ev\b|kale|kule|bina|ağaç|kaya|çit|köprü|çadır|tapınak|dükkan)/.test(t)) return 'bina';
+  if (/(canavar|yaratık|zombi|örümcek|ejderha|iskelet|hayalet|goblin|ork|slime|balçık|kurt|yılan|böcek|şeytan|iblis|düşman|vampir|mumya|golem)/.test(t)) return 'dusman';
+  return 'karakter';
+}
+function guessBakis(t, tur) {
+  t = t.toLocaleLowerCase('tr');
+  if (tur === 'tile') return 'topdown';
+  if (/(örümcek|yılan|solucan|böcek|at\b|köpek|kedi\b|kurt|araba|gemi|tank)/.test(t)) return 'side';
+  if (tur === 'bina') return 'threequarter';
+  return 'front';
+}
+const TURLER = ['karakter', 'dusman', 'esya', 'ikon', 'tile', 'bina'];
+const BAKISLAR = ['front', 'side', 'topdown', 'iso', 'threequarter'];
+const TUR_TR = { karakter: 'Karakter', dusman: 'Düşman', esya: 'Eşya', ikon: 'İkon', tile: 'Zemin', bina: 'Bina/Obje' };
+const BAKIS_TR = { front: 'Önden', side: 'Yandan', topdown: 'Tepeden', iso: 'İzometrik', threequarter: '3/4' };
+
+async function interpret(text, tur, cins, bakis = 'front') {
+  if (!text.trim()) return { en: text, tur, bakis };
+  const auto = tur === 'auto' || bakis === 'auto';
+  const key = [text, tur, cins, bakis].join('|');
   if (trCache.has(key)) return trCache.get(key);
   const g = cins === 'erkek' ? 'The character is male (a man or boy). '
     : cins === 'kadin' ? 'The character is female (a woman or girl). ' : '';
-  const q = `You write prompts for an image model that draws 2D game assets. Convert this Turkish description of a ${TUR_EN[tur] || 'game asset'} into a concise English visual description. ` +
+  const head = auto
+    ? 'First line must be exactly: TYPE=<one of: character, enemy, item, icon, tile, building>; VIEW=<one of: front, side, topdown, iso, threequarter>. ' +
+      'enemy = monsters, creatures, undead, beasts; character = heroes, people, NPCs; item = weapons, potions, objects; tile = ground textures; building = houses, trees, props. ' +
+      'VIEW: side for animals with many legs, snakes, vehicles; topdown for tiles; front for most characters. Then on the second line write the description. '
+    : '';
+  const q = `You write prompts for an image model that draws 2D game assets. Convert this Turkish description of a ${tur === 'auto' ? 'game asset' : (TUR_EN[tur] || 'game asset')} into a concise English visual description. ` + head +
     'Rules: describe only what can be seen (gender, age, body build, face and expression, hair, skin, clothing with colors, accessories, held items, pose). ' +
     'Turn abstract traits into visible details (strong -> muscular arms and broad shoulders; capable -> confident stance with a tool belt; slightly tired -> faint dark circles under the eyes; happy -> warm smile). ' +
     'Start with the overall body plan and creature type first (e.g. "spider-bodied creature with a cat head", "winged lion humanoid"), because the image model weighs the first words most; if the body is not humanoid say so explicitly (e.g. "not humanoid, no arms"). ' +
@@ -214,14 +242,30 @@ async function interpret(text, tur, cins) {
     const r = await fetch('https://text.pollinations.ai/' + encodeURIComponent(q), { signal: ac.signal });
     clearTimeout(to);
     if (r.ok) {
-      let out = (await r.text()).trim().replace(/^["'`]+|["'`]+$/g, '').replace(/\s+/g, ' ');
-      if (out && out.length < 600 && !/^(sorry|i can)/i.test(out)) { trCache.set(key, out); return out; }
+      let raw = (await r.text()).trim();
+      let rt = tur, rb = bakis;
+      const m = raw.match(/TYPE\s*=\s*(\w+)\s*;?\s*VIEW\s*=\s*(\w+)/i);
+      if (m) {
+        const tmap = { character: 'karakter', enemy: 'dusman', item: 'esya', icon: 'ikon', tile: 'tile', building: 'bina' };
+        if (tur === 'auto') rt = tmap[m[1].toLowerCase()] || guessTur(text);
+        if (bakis === 'auto' && BAKISLAR.includes(m[2].toLowerCase())) rb = m[2].toLowerCase();
+        raw = raw.replace(m[0], '');
+      }
+      let out = raw.replace(/^[\s.;:-]+/, '').replace(/^["'`]+|["'`]+$/g, '').replace(/\s+/g, ' ').trim();
+      if (out && out.length < 600 && !/^(sorry|i can)/i.test(out)) {
+        if (rt === 'auto') rt = guessTur(text);
+        if (rb === 'auto') rb = guessBakis(text, rt);
+        const res = { en: out, tur: rt, bakis: rb };
+        trCache.set(key, res); return res;
+      }
     }
   } catch (e) { /* olmazsa sözlük kullanılır */ }
+  const rt = tur === 'auto' ? guessTur(text) : tur;
+  const rb = bakis === 'auto' ? guessBakis(text, rt) : bakis;
   const fb = dictTranslate(text);
-  return (cins === 'erkek' ? 'man, ' : cins === 'kadin' ? 'woman, ' : '') + fb;
+  return { en: (cins === 'erkek' ? 'man, ' : cins === 'kadin' ? 'woman, ' : '') + fb, tur: rt, bakis: rb };
 }
-async function toEnglish(text) { return interpret(text, 'serbest', ''); }
+async function toEnglish(text) { return (await interpret(text, 'serbest', '')).en; }
 
 /* Yedek: oyun asset'lerinde sık geçen Türkçe kelimeler */
 const SOZLUK = {
@@ -249,7 +293,10 @@ function dictTranslate(text) {
 }
 
 const PORTRE = ['karakter', 'dusman'];
-function sizeFor(tur) { return PORTRE.includes(tur) ? { w: 832, h: 1216 } : { w: 1024, h: 1024 }; }
+function sizeFor(tur, bakis) {
+  if (tur === 'dusman' && (bakis === 'side' || bakis === 'topdown')) return { w: 1216, h: 832 }; // yatay yaratıklar (örümcek, yılan)
+  return PORTRE.includes(tur) ? { w: 832, h: 1216 } : { w: 1024, h: 1024 };
+}
 function buildPrompt(desc, o) {
   const parts = [];
   if (o.stil === 'pixel' && o.tur !== 'serbest') parts.push('pixel art');
@@ -380,15 +427,15 @@ async function runQueue() {
   $('#durum').textContent = 'Hazır. Motor: ' + engine.name + ' (ücretsiz).';
 }
 
-let lastDesc = '', lastYorum = '';
-$('#tur').onchange = () => { $('#cinsKutu').hidden = !['karakter', 'dusman'].includes($('#tur').value); };
+let lastDesc = '', lastYorum = '', lastTur = '', lastBakis = '';
+$('#tur').onchange = () => { $('#cinsKutu').hidden = !['auto', 'karakter', 'dusman'].includes($('#tur').value); };
 $('#btnUret').onclick = async () => {
   const desc = $('#prompt').value.trim();
   if (!desc) return toast('Önce ne üretileceğini yaz');
   const o = {
     tur: $('#tur').value, stil: $('#stil').value, bakis: $('#bakis').value,
     recete: $('#recete').value.trim(), negatif: $('#negatif').value.trim(),
-    seffaf: $('#seffaf').checked && $('#tur').value !== 'tile',
+    seffaf: $('#seffaf').checked,
   };
   localStorage.setItem('sa-seffaf', $('#seffaf').checked ? '1' : '0');
   localStorage.setItem('sa-recete', o.recete);
@@ -399,17 +446,26 @@ $('#btnUret').onclick = async () => {
   $('#durum').textContent = 'Hazırlanıyor...';
   const cins = $('#cins').value;
   let en;
-  if ($('#ham').checked) en = desc;
-  else if (desc === lastDesc && $('#yorum').value.trim() && $('#yorum').value.trim() !== lastYorum) en = $('#yorum').value.trim(); // elle düzeltilmiş yorum
-  else {
+  if ($('#ham').checked) {
+    en = desc;
+    if (o.tur === 'auto') o.tur = guessTur(desc);
+    if (o.bakis === 'auto') o.bakis = guessBakis(desc, o.tur);
+  } else if (desc === lastDesc && $('#yorum').value.trim() && $('#yorum').value.trim() !== lastYorum) {
+    en = $('#yorum').value.trim(); // elle düzeltilmiş yorum
+    if (o.tur === 'auto') o.tur = lastTur || guessTur(desc);
+    if (o.bakis === 'auto') o.bakis = lastBakis || guessBakis(desc, o.tur);
+  } else {
     $('#durum').textContent = 'Tarif yorumlanıyor...';
-    en = await interpret(desc, o.tur, cins);
+    const r = await interpret(desc, o.tur, cins, o.bakis);
+    en = r.en; o.tur = r.tur; o.bakis = r.bakis;
   }
+  lastTur = o.tur; lastBakis = o.bakis;
+  if (o.tur === 'tile') o.seffaf = false;
   lastDesc = desc; lastYorum = en;
   $('#yorum').value = en;
   $('#yorumKutu').hidden = false;
   const prompt = buildPrompt(en, { ...o, ham: desc });
-  $('#durum').textContent = 'Üretiliyor...';
+  $('#durum').textContent = `Üretiliyor... Tür: ${TUR_TR[o.tur] || o.tur} · Bakış: ${BAKIS_TR[o.bakis] || o.bakis}`;
   for (let i = 0; i < n; i++) {
     const seed = baseSeed + i;
     const card = document.createElement('div');
@@ -418,7 +474,7 @@ $('#btnUret').onclick = async () => {
     $('#sonuclar').prepend(card);
     const w = card.querySelector('.wait');
     enqueue({
-      params: { prompt, seed, model, stil: o.stil, negatif: o.negatif, seffaf: o.seffaf, ...sizeFor(o.tur) },
+      params: { prompt, seed, model, stil: o.stil, negatif: o.negatif, seffaf: o.seffaf, ...sizeFor(o.tur, o.bakis) },
       onWait: s => { w.textContent = `Sırada · ${s} sn`; $('#durum').textContent = `Ücretsiz sıra: ${queue.length + 1} iş bekliyor`; },
       onStart: eng => { w.textContent = 'Üretiliyor (' + eng.name + ')...'; card.querySelector('.meta').textContent += ' · ' + eng.name.split(' ')[0]; },
       onDone: c => {
