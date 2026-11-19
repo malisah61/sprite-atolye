@@ -51,7 +51,7 @@ jobs:
             "prompt": os.environ["IN_PROMPT"], "style": os.environ["IN_STIL"],
             "n": int(os.environ["IN_N"]), "seed": int(os.environ["IN_SEED"]),
             "width": int(os.environ["IN_W"]), "height": int(os.environ["IN_H"]),
-            "transparent": True,
+            "auto": True,
           }
           req = urllib.request.Request(os.environ["MOTOR_URL"] + "/generate", data=json.dumps(body).encode(),
               headers={"Content-Type": "application/json", "X-Sprite-Key": os.environ["SPRITE_KEY"]})

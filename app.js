@@ -244,7 +244,7 @@ const ENGINES = {
   pollinations: {
     name: 'Pollinations',
     minGap: 16000,
-    async generate({ prompt, seed, model, w = 1024, h = 1024, seffaf = false }) {
+    async generate({ prompt, seed, model, w = 1024, h = 1024, seffaf = false, stil = '' }) {
       const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) +
         `?width=${w}&height=${h}&seed=${seed}&model=${model}&nologo=true&private=true`;
       const ac = new AbortController();
@@ -256,8 +256,10 @@ const ENGINES = {
         const blob = await r.blob();
         if (!blob.type.startsWith('image')) throw new Error('Görsel gelmedi');
         const c = await blobToCanvas(blob);
-        if (seffaf) removeBackground(c, 45);
-        return c;
+        if (!seffaf) return c;
+        removeBackground(c, 45);
+        const t = trimCanvas(c, 2);
+        return stil === 'pixel' ? pixelate(t, 96, 0, false) : t;
       } finally { clearTimeout(to); }
     },
   },
@@ -272,7 +274,7 @@ const ENGINES = {
         const r = await fetch(url.replace(/\/+$/, '') + '/generate', {
           method: 'POST', signal: ac.signal,
           headers: { 'Content-Type': 'application/json', 'X-Sprite-Key': key },
-          body: JSON.stringify({ prompt, seed, n: 1, width: w, height: h, transparent: seffaf, style: stil === 'pixel' ? 'pixel' : 'other', negative: negatif || undefined }),
+          body: JSON.stringify({ prompt, seed, n: 1, width: w, height: h, auto: seffaf, style: stil === 'pixel' ? 'pixel' : 'other', negative: negatif || undefined }),
         });
         if (r.status === 401) throw new Error('Motor anahtarı yanlış');
         if (!r.ok) throw new Error('Modal hatası ' + r.status);
@@ -386,7 +388,10 @@ $('#btnUret').onclick = async () => {
       onDone: c => {
         const box = card.querySelector('.img');
         box.innerHTML = '';
-        box.appendChild(c);
+        const view = cloneCanvas(c);
+        showScaled(view, 150);
+        box.appendChild(view);
+        card.querySelector('.meta').textContent += ` · ${c.width}×${c.height}`;
         const acts = document.createElement('div');
         acts.className = 'acts';
         acts.innerHTML = '<button data-a="at">Atölye</button><button data-a="kay">Kaydet</button><button data-a="in">İndir</button>';
