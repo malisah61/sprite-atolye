@@ -9,6 +9,20 @@ UYGUN = {"openrail++", "apache-2.0", "mit", "creativeml-openrail-m", "openrail",
 api = HfApi()
 OZET = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
 out = open(OZET, "a")
+if sys.argv[1].startswith("kart:"):
+    # kart:repo1,repo2 → model kartlarını (lisans, tetik kelimesi, açıklama) ve dosyaları yazdır
+    from huggingface_hub import ModelCard
+    for r in sys.argv[1][5:].split(","):
+        r = r.strip()
+        print(f"\n======== {r}")
+        try:
+            info = api.model_info(r)
+            print("dosyalar:", [s.rfilename for s in info.siblings])
+            print("etiketler:", info.tags)
+            print(ModelCard.load(r).content[:2500])
+        except Exception as e:  # noqa
+            print("HATA:", e)
+    sys.exit(0)
 for kelime in [k.strip() for k in sys.argv[1].split(",") if k.strip()]:
     out.write(f"\n### {kelime}\n| model | lisans | indirme | dosyalar |\n|---|---|---|---|\n")
     print(f"\n=== {kelime}")
