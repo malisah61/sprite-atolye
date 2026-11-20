@@ -20,7 +20,9 @@ POST /rembg  {"image": "<base64>"} → {"image": "<base64 RGBA png>"}
 import modal
 
 APP_NAME = "sprite-atolye"
-BASE = "stabilityai/stable-diffusion-xl-base-1.0"
+# DreamShaper XL 1.0 (SDXL ince ayarı, lisans openrail++ — ticari kullanım serbest). 20 Kasım karşılaştırmasında
+# SDXL base'e göre pixel ve HD'de belirgin daha detaylı. Eskiye dönmek için: "stabilityai/stable-diffusion-xl-base-1.0"
+BASE = "Lykon/dreamshaper-xl-1-0"
 VAE = "madebyollin/sdxl-vae-fp16-fix"
 PIXEL_LORA = "nerijs/pixel-art-xl"
 PIXEL_LORA_FILE = "pixel-art-xl.safetensors"
@@ -250,7 +252,8 @@ class Motor:
             BASE, vae=vae, torch_dtype=torch.float16, variant="fp16", use_safetensors=True
         )
         pipe.scheduler = DPMSolverMultistepScheduler.from_config(
-            pipe.scheduler.config, use_karras_sigmas=True
+            pipe.scheduler.config, use_karras_sigmas=True, algorithm_type="dpmsolver++", solver_type="midpoint",
+            final_sigmas_type="zero", timestep_spacing="leading", steps_offset=1  # DreamShaper DEIS ayarıyla gelir
         )
         pipe.load_lora_weights(PIXEL_LORA, weight_name=PIXEL_LORA_FILE, adapter_name="pixel")
         pipe.load_ip_adapter(IPA_REPO, subfolder="sdxl_models", weight_name=IPA_FILE,
@@ -417,7 +420,7 @@ class Motor:
 
         @api.get("/")
         def health():
-            return {"ok": True, "motor": "sdxl+pixel-art-xl+ip-adapter", "gpu": "T4",
+            return {"ok": True, "motor": "sdxl+pixel-art-xl+ip-adapter", "model": BASE, "gpu": "T4",
                     "ozellikler": ["generate", "reference", "tileable", "edit", "inpaint", "rembg"]}
 
         @api.post("/generate")
@@ -434,7 +437,7 @@ class Motor:
             width = clamp(body.get("width", size))
             height = clamp(body.get("height", size))
             style = str(body.get("style", "pixel"))
-            negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters, character sheet, multiple views, duplicate, turnaround, ground shadow, cast shadow, drop shadow, shadow under feet, frame, border, card frame, ornamental background, patterned background, wallpaper, scenery, landscape"))[:500]
+            negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters, character sheet, reference sheet, model sheet, multiple poses, inset, close-up panel, multiple views, duplicate, turnaround, ground shadow, cast shadow, drop shadow, shadow under feet, frame, border, card frame, ornamental background, patterned background, wallpaper, scenery, landscape"))[:500]
             transparent = bool(body.get("transparent", False))
             auto = bool(body.get("auto", False))
             native = bool(body.get("native", False))
