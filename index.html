@@ -24,6 +24,7 @@
 <!-- ÜRET -->
 <section id="uret" class="tab on">
   <div class="card">
+    <div class="row"><select id="oyunStil" style="flex:1"></select><button id="btnStilKaydet" title="Şu anki stil + reçete + referansı kaydet">Stili kaydet</button></div>
     <label>Ne üretelim?</label>
     <textarea id="prompt" rows="3" placeholder="Örn: yeşil derili, yırtık gömlekli koşan zombi"></textarea>
     <div class="grid2">
@@ -36,6 +37,8 @@
           <option value="ikon">İkon</option>
           <option value="tile">Zemin dokusu (tile)</option>
           <option value="bina">Bina / Obje</option>
+          <option value="ui">Arayüz (buton, panel)</option>
+          <option value="kart">Kart çerçevesi</option>
           <option value="serbest">Serbest (ek yok)</option>
         </select></div>
       <div><label>Stil</label>
@@ -69,6 +72,13 @@
           <option value="turbo">turbo (hızlı)</option>
         </select></div>
     </div>
+    <div id="refKutu" class="refkutu" hidden>
+      <canvas id="refOnizle"></canvas>
+      <div style="flex:1"><label>Referans: yeni üretimler buna benzer · Benzerlik <output id="oRef">0.6</output></label>
+        <input type="range" id="refScale" min="0.2" max="0.95" step="0.05" value="0.6"></div>
+      <button id="btnRefTemizle" class="ghostbtn">✕</button>
+    </div>
+    <div class="row"><button id="btnRefSec">Referans seç (galeriden)</button></div>
     <details>
       <summary>Gelişmiş</summary>
       <label>Stil reçetesi (her prompta eklenir — oyun boyunca aynı tutarsan bütün karakterler aynı oyundan çıkmış gibi olur)</label>
@@ -109,7 +119,7 @@
       <label class="filebtn">Resim yükle<input type="file" id="dosya" accept="image/*" hidden></label>
       <button id="btnGaleridenSec">Galeriden seç</button>
     </div>
-    <div class="stage checker"><canvas id="cvAtolye"></canvas></div>
+    <div class="stage checker"><div class="boyakap"><canvas id="cvAtolye"></canvas><canvas id="cvMaske"></canvas></div></div>
     <p class="hint" id="atolyeBilgi">Önce Üret sekmesinden bir sonuç seç ya da resim yükle.</p>
 
     <h3>1 · Arka planı sil</h3>
@@ -118,6 +128,17 @@
     <p class="hint">Arka planı, gölgeyi ve kalıntıları siler, kırpar (Modal, birkaç sn). Küçük oyun boyutu istersen aşağıdaki "Pixel art yap"ı kullan. Normal silme ise düz arka planlar için, internetsiz çalışır:</p>
     <div class="row"><button id="btnArka">Arka planı sil</button><button id="btnKirp">Boşlukları kırp</button><button id="btnBol">Parçalara ayır</button></div>
     <p class="hint">Bir görselde birden çok karakter çıktıysa: önce arka planı sil, sonra "Parçalara ayır" — her biri ayrı sprite olur.</p>
+
+    <h3>Yapay zekâ ile düzenle</h3>
+    <label>Ne değişsin? (ör. "kırmızı şapka ekle", "zırhı altın yap")</label>
+    <textarea id="duzenMetin" rows="2"></textarea>
+    <div class="row"><label>Değişim gücü <output id="oGuc">0.55</output></label><input type="range" id="duzenGuc" min="0.2" max="0.9" step="0.05" value="0.55"></div>
+    <div class="row"><button id="btnDuzenle" class="primary">Metinle düzenle</button><button id="btnBoyaMod">🖌 Boyayarak düzenle</button></div>
+    <div id="boyaAraclar" hidden>
+      <p class="hint">Değişmesini istediğin yeri parmağınla boya, sonra "Boyanan yeri yeniden çiz"e bas. Sadece boyanan bölge değişir.</p>
+      <div class="row"><label>Fırça <output id="oFirca">24</output></label><input type="range" id="firca" min="4" max="120" value="24"></div>
+      <div class="row"><button id="btnBoyaCiz" class="primary">Boyanan yeri yeniden çiz</button><button id="btnBoyaTemizle">Boyayı temizle</button></div>
+    </div>
 
     <h3>2 · Pixel art'a çevir</h3>
     <div class="grid2">

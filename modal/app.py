@@ -268,7 +268,7 @@ class Motor:
 
         self.rb = new_session("isnet-general-use")
 
-    def _cut(self, im):
+    def _cut(self, im, force=False):
         """Yapay zekâ ile arka plan silme (gölge dahil) → RGBA."""
         from rembg import remove
 
@@ -282,7 +282,7 @@ class Motor:
                                rgb[:, :w].reshape(-1, 3), rgb[:, -w:].reshape(-1, 3)]).astype(np.int32)
         busy = float((np.sqrt(((edge - np.median(edge, axis=0)) ** 2).sum(-1)) > 40).mean())
         self.last_plain = busy < 0.15  # kenar şeridinin %15'inden fazlası arka plandan farklıysa: desen/çerçeve/sahne
-        if not self.last_plain:
+        if not self.last_plain and not force:
             self.last_bg = None
             return im.convert("RGBA")
         raw = remove(im.convert("RGB"), session=self.rb, post_process_mask=True)
@@ -325,14 +325,14 @@ class Motor:
         self.pipe.set_ip_adapter_scale(float(ref_scale) if ref_img is not None else 0.0)
         return ref_img if ref_img is not None else self.blank
 
-    def _post(self, out, transparent, auto, style, native):
+    def _post(self, out, transparent, auto, style, native, force=False):
         import base64
         import io
 
         imgs, grids, plains = [], [], []
         for im in out:
             if transparent or auto:
-                im = self._cut(im)
+                im = self._cut(im, force)
                 plains.append(getattr(self, "last_plain", True))
             if auto:
                 im, k = auto_clean(im, style, getattr(self, "last_bg", None), native)
@@ -362,7 +362,8 @@ class Motor:
             out = self.inp(mask_image=mask, width=W, height=H, **kw).images
         else:
             out = self.i2i(**kw).images
-        imgs, grids, plains = self._post(out, auto, auto, style, False)
+        # düzenlenen görsel zaten tek figür: arka plan desenli görünse bile kesmeyi zorla
+        imgs, grids, plains = self._post(out, auto, auto, style, False, force=True)
         return {"images": imgs, "plain": plains, "seconds": round(time.time() - t0, 2)}
 
     def _run(self, prompt, negative, seed, n, width, height, style, transparent=False, auto=False, native=False,

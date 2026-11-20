@@ -80,8 +80,8 @@ def boya():
 
 
 def doku():
-    d, s = post("/generate", {"prompt": "pixel art, seamless tileable grass ground texture, top-down, game tile", "seed": 9, "n": 1,
-                              "width": 512, "height": 512, "style": "pixel", "tileable": True})
+    d, s = post("/generate", {"prompt": "hand painted 2D game texture, seamless tileable lush green grass ground with small flowers and pebbles, top-down view, even lighting, flat, no shadows", "seed": 9, "n": 1,
+                              "width": 1024, "height": 1024, "style": "other", "tileable": True})
     kaydet("doku_cimen", d["images"][0])
     yaz(f"Dikişsiz doku: GPU {d['seconds']} sn")
 

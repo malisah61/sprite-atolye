@@ -164,6 +164,8 @@ const TUR = {
   ikon: 'single game UI icon, simple readable shapes, centered',
   tile: 'seamless tileable game ground texture, pattern fills the entire image edge to edge',
   bina: 'single 2D game building or prop asset, one object, centered',
+  ui: 'single game UI element (button, panel or bar), clean readable shapes, front view, centered',
+  kart: 'ornate trading card frame border only, empty plain center, symmetrical, front view, game card template',
   serbest: '',
 };
 const STIL = {
@@ -179,6 +181,7 @@ const BAKIS = {
   topdown: 'top-down view seen from directly above',
   iso: 'isometric view',
   threequarter: 'three-quarter view',
+  back: 'back view seen from behind, facing away from the camera',
 };
 /* Arka plan rengi: karakterde geçen renklerle çakışmayan ilk renk (aynı renk kıyafet silinmesin) */
 const BG_SECENEK = [
@@ -194,12 +197,14 @@ function pickBg(text) {
 const bgText = renk => `isolated on a plain flat solid ${renk} background, no shadow, no ground, no scenery`;
 
 const trCache = new Map();
-const TUR_EN = { karakter: 'game character', dusman: 'game enemy creature', esya: 'game item', ikon: 'game icon', tile: 'ground texture', bina: 'game building or prop', serbest: 'image' };
+const TUR_EN = { karakter: 'game character', dusman: 'game enemy creature', esya: 'game item', ikon: 'game icon', tile: 'ground texture', bina: 'game building or prop', ui: 'game UI element', kart: 'trading card frame', serbest: 'image' };
 /* Tarif yorumlayıcı: serbest Türkçe tarifi modelin çizebileceği somut İngilizce özelliklere çevirir */
 /* Otomatik tür/bakış — yapay zekâ cevap vermezse kelimelere bakarak */
 function guessTur(t) {
   t = t.toLocaleLowerCase('tr');
   if (/(zemin|doku|döşeme|tile|çimen|toprak|parke|duvar dokusu)/.test(t)) return 'tile';
+  if (/(kart çerçeve|çerçeve|kart şablon)/.test(t)) return 'kart';
+  if (/(buton|düğme|panel|menü|can barı|arayüz|ui\b)/.test(t)) return 'ui';
   if (/(ikon|simge|icon)/.test(t)) return 'ikon';
   if (/(kılıç|kalkan|iksir|balta|mızrak|yay\b|ok\b|asa|tabanca|tüfek|sandık|anahtar|altın|para|mücevher|yüzük|kitap|eşya|silah|zırh parçası)/.test(t)) return 'esya';
   if (/(ev\b|kale|kule|bina|ağaç|kaya|çit|köprü|çadır|tapınak|dükkan)/.test(t)) return 'bina';
@@ -209,14 +214,15 @@ function guessTur(t) {
 function guessBakis(t, tur) {
   t = t.toLocaleLowerCase('tr');
   if (tur === 'tile') return 'topdown';
+  if (tur === 'ui' || tur === 'kart' || tur === 'ikon' || tur === 'esya') return 'front';
   if (/(örümcek|yılan|solucan|böcek|at\b|köpek|kedi\b|kurt|araba|gemi|tank)/.test(t)) return 'side';
   if (tur === 'bina') return 'threequarter';
   return 'front';
 }
-const TURLER = ['karakter', 'dusman', 'esya', 'ikon', 'tile', 'bina'];
+const TURLER = ['karakter', 'dusman', 'esya', 'ikon', 'tile', 'bina', 'ui', 'kart'];
 const BAKISLAR = ['front', 'side', 'topdown', 'iso', 'threequarter'];
-const TUR_TR = { karakter: 'Karakter', dusman: 'Düşman', esya: 'Eşya', ikon: 'İkon', tile: 'Zemin', bina: 'Bina/Obje' };
-const BAKIS_TR = { front: 'Önden', side: 'Yandan', topdown: 'Tepeden', iso: 'İzometrik', threequarter: '3/4' };
+const TUR_TR = { karakter: 'Karakter', dusman: 'Düşman', esya: 'Eşya', ikon: 'İkon', tile: 'Zemin', bina: 'Bina/Obje', ui: 'Arayüz', kart: 'Kart çerçevesi' };
+const BAKIS_TR = { front: 'Önden', side: 'Yandan', topdown: 'Tepeden', iso: 'İzometrik', threequarter: '3/4', back: 'Arkadan' };
 
 async function interpret(text, tur, cins, bakis = 'front') {
   if (!text.trim()) return { en: text, tur, bakis };
@@ -226,7 +232,7 @@ async function interpret(text, tur, cins, bakis = 'front') {
   const g = cins === 'erkek' ? 'The character is male (a man or boy). '
     : cins === 'kadin' ? 'The character is female (a woman or girl). ' : '';
   const head = auto
-    ? 'First line must be exactly: TYPE=<one of: character, enemy, item, icon, tile, building>; VIEW=<one of: front, side, topdown, iso, threequarter>. ' +
+    ? 'First line must be exactly: TYPE=<one of: character, enemy, item, icon, tile, building, ui, cardframe>; VIEW=<one of: front, side, topdown, iso, threequarter>. ' +
       'enemy = monsters, creatures, undead, beasts; character = heroes, people, NPCs; item = weapons, potions, objects; tile = ground textures; building = houses, trees, props. ' +
       'VIEW: side for animals with many legs, snakes, vehicles; topdown for tiles; front for most characters. Then on the second line write the description. '
     : '';
@@ -246,7 +252,7 @@ async function interpret(text, tur, cins, bakis = 'front') {
       let rt = tur, rb = bakis;
       const m = raw.match(/TYPE\s*=\s*(\w+)\s*;?\s*VIEW\s*=\s*(\w+)/i);
       if (m) {
-        const tmap = { character: 'karakter', enemy: 'dusman', item: 'esya', icon: 'ikon', tile: 'tile', building: 'bina' };
+        const tmap = { character: 'karakter', enemy: 'dusman', item: 'esya', icon: 'ikon', tile: 'tile', building: 'bina', ui: 'ui', cardframe: 'kart' };
         if (tur === 'auto') rt = tmap[m[1].toLowerCase()] || guessTur(text);
         if (bakis === 'auto' && BAKISLAR.includes(m[2].toLowerCase())) rb = m[2].toLowerCase();
         raw = raw.replace(m[0], '');
@@ -292,7 +298,7 @@ function dictTranslate(text) {
   return main.join(' ') + (extra.length ? ' ' + extra.join(', ') : '');
 }
 
-const PORTRE = ['karakter', 'dusman'];
+const PORTRE = ['karakter', 'dusman', 'kart'];
 function sizeFor(tur, bakis) {
   if (tur === 'dusman' && (bakis === 'side' || bakis === 'topdown')) return { w: 1216, h: 832 }; // yatay yaratıklar (örümcek, yılan)
   return PORTRE.includes(tur) ? { w: 832, h: 1216 } : { w: 1024, h: 1024 };
@@ -304,7 +310,7 @@ function buildPrompt(desc, o) {
   if (o.tur !== 'serbest') {
     parts.push(TUR[o.tur], STIL[o.stil]);
     if (o.tur !== 'tile') parts.push(BAKIS[o.bakis], bgText(pickBg(desc + ' ' + (o.ham || ''))));
-    else parts.push('top-down', STIL[o.stil]);
+    else parts.push('top-down, even flat lighting, no shadows, no objects cut at edges');
   }
   if (o.recete) parts.push(o.recete);
   if (o.negatif) parts.push('without ' + o.negatif);
@@ -337,7 +343,7 @@ const ENGINES = {
   modal: {
     name: 'Modal (kendi GPU)',
     minGap: 0,
-    async generate({ prompt, seed, stil, negatif, w = 1024, h = 1024, seffaf = false }) {
+    async generate({ prompt, seed, stil, negatif, w = 1024, h = 1024, seffaf = false, ref = null, refScale = 0.6, tile = false }) {
       const { url, key } = modalCfg();
       const ac = new AbortController();
       const to = setTimeout(() => ac.abort(), 300000);
@@ -345,7 +351,8 @@ const ENGINES = {
         const r = await fetch(url.replace(/\/+$/, '') + '/generate', {
           method: 'POST', signal: ac.signal,
           headers: { 'Content-Type': 'application/json', 'X-Sprite-Key': key },
-          body: JSON.stringify({ prompt, seed, n: 1, width: w, height: h, auto: seffaf, style: stil === 'pixel' ? 'pixel' : 'other', negative: negatif || undefined }),
+          body: JSON.stringify({ prompt, seed, n: 1, width: w, height: h, auto: seffaf, style: stil === 'pixel' ? 'pixel' : 'other', negative: negatif || undefined,
+            reference: ref || undefined, ref_scale: refScale, tileable: tile }),
         });
         if (r.status === 401) throw new Error('Motor anahtarı yanlış');
         if (!r.ok) throw new Error('Modal hatası ' + r.status);
@@ -465,45 +472,112 @@ $('#btnUret').onclick = async () => {
   lastDesc = desc; lastYorum = en;
   $('#yorum').value = en;
   $('#yorumKutu').hidden = false;
-  const prompt = buildPrompt(en, { ...o, ham: desc });
-  $('#durum').textContent = `Üretiliyor... Tür: ${TUR_TR[o.tur] || o.tur} · Bakış: ${BAKIS_TR[o.bakis] || o.bakis}`;
-  for (let i = 0; i < n; i++) {
-    const seed = baseSeed + i;
-    const card = document.createElement('div');
-    card.className = 'item';
-    card.innerHTML = `<div class="img checker"><div class="wait">Sırada...</div></div><div class="meta" title="${escapeHtml(prompt)}">${escapeHtml(desc)} · seed ${seed}</div>`;
-    $('#sonuclar').prepend(card);
-    const w = card.querySelector('.wait');
-    enqueue({
-      params: { prompt, seed, model, stil: o.stil, negatif: o.negatif, seffaf: o.seffaf, ...sizeFor(o.tur, o.bakis) },
-      onWait: s => { w.textContent = `Sırada · ${s} sn`; $('#durum').textContent = `Ücretsiz sıra: ${queue.length + 1} iş bekliyor`; },
-      onStart: eng => { w.textContent = 'Üretiliyor (' + eng.name + ')...'; card.querySelector('.meta').textContent += ' · ' + eng.name.split(' ')[0]; },
-      onDone: c => {
-        const box = card.querySelector('.img');
-        box.innerHTML = '';
-        const view = cloneCanvas(c);
-        showScaled(view, 150);
-        box.appendChild(view);
-        card.querySelector('.meta').textContent += ` · ${c.width}×${c.height}`;
-        const acts = document.createElement('div');
-        acts.className = 'acts';
-        acts.innerHTML = '<button data-a="at">Atölye</button><button data-a="kay">Kaydet</button><button data-a="in">İndir</button>';
-        acts.querySelector('[data-a=at]').onclick = () => { loadIntoWorkshop(cloneCanvas(c), desc); openTab('atolye'); };
-        acts.querySelector('[data-a=kay]').onclick = async () => { await saveToGallery(c, desc, prompt); toast('Galeriye kaydedildi'); };
-        acts.querySelector('[data-a=in]').onclick = async () => downloadBlob(await canvasToBlob(c), slug(desc) + '-' + seed + '.png');
-        card.appendChild(acts);
-      },
-      onError: e => { w.textContent = 'Hata: ' + e.message + ' — tekrar dene'; },
-    });
-  }
+  const ref = REF.b64 && engine === ENGINES.modal ? REF.b64 : null;
+  if (REF.b64 && !ref) toast('Referans sadece Modal motorunda çalışır', 3000);
+  $('#durum').textContent = `Üretiliyor... Tür: ${TUR_TR[o.tur] || o.tur} · Bakış: ${BAKIS_TR[o.bakis] || o.bakis}${ref ? ' · referanslı' : ''}`;
+  for (let i = 0; i < n; i++) uretimKarti({ desc, en, o, seed: baseSeed + i, model, ref, refScale: REF.scale });
 };
+
+/* Tek üretim kartı (Üret ve Yön seti ortak kullanır) */
+function uretimKarti({ desc, en, o, seed, model, ref = null, refScale = 0.6, etiket = '' }) {
+  const prompt = buildPrompt(en, { ...o, ham: desc });
+  const card = document.createElement('div');
+  card.className = 'item';
+  card.innerHTML = `<div class="img checker"><div class="wait">Sırada...</div></div><div class="meta" title="${escapeHtml(prompt)}">${escapeHtml(etiket ? etiket + ' · ' : '')}${escapeHtml(desc)} · seed ${seed}</div>`;
+  $('#sonuclar').prepend(card);
+  const w = card.querySelector('.wait');
+  enqueue({
+    params: { prompt, seed, model, stil: o.stil, negatif: o.negatif, seffaf: o.seffaf, ref, refScale, tile: o.tur === 'tile', ...sizeFor(o.tur, o.bakis) },
+    onWait: s => { w.textContent = `Sırada · ${s} sn`; $('#durum').textContent = `Sıra: ${queue.length + 1} iş bekliyor`; },
+    onStart: eng => { w.textContent = 'Üretiliyor (' + eng.name + ')...'; card.querySelector('.meta').textContent += ' · ' + eng.name.split(' ')[0]; },
+    onDone: c => {
+      const box = card.querySelector('.img');
+      box.innerHTML = '';
+      const view = cloneCanvas(c);
+      showScaled(view, 150);
+      box.appendChild(view);
+      card.querySelector('.meta').textContent += ` · ${c.width}×${c.height}`;
+      const acts = document.createElement('div');
+      acts.className = 'acts wrap';
+      acts.innerHTML = '<button data-a="at">Atölye</button><button data-a="kay">Kaydet</button><button data-a="in">İndir</button>' +
+        (['karakter', 'dusman'].includes(o.tur) ? '<button data-a="yon">Yön seti</button><button data-a="ref">Referans yap</button>' : '<button data-a="ref">Referans yap</button>');
+      acts.querySelector('[data-a=at]').onclick = () => { loadIntoWorkshop(cloneCanvas(c), desc, en); openTab('atolye'); };
+      acts.querySelector('[data-a=kay]').onclick = async () => { await saveToGallery(c, desc, prompt); toast('Galeriye kaydedildi'); };
+      acts.querySelector('[data-a=in]').onclick = async () => downloadBlob(await canvasToBlob(c), slug(desc) + '-' + seed + '.png');
+      acts.querySelector('[data-a=ref]').onclick = () => { referansAyarla(c); window.scrollTo(0, 0); };
+      const yon = acts.querySelector('[data-a=yon]');
+      if (yon) yon.onclick = () => yonSeti(c, { desc, en, o, seed, model });
+      card.appendChild(acts);
+    },
+    onError: e => { w.textContent = 'Hata: ' + e.message + ' — tekrar dene'; },
+  });
+}
+
+/* Yön seti: aynı karakteri önden, yandan, arkadan (referanslı) */
+function yonSeti(c, { desc, en, o, seed, model }) {
+  if (engine !== ENGINES.modal) return toast('Yön seti için Modal motoru gerekli');
+  const ref = c.toDataURL('image/png').split(',')[1];
+  [['front', 'Ön'], ['side', 'Yan'], ['back', 'Arka']].forEach(([b, ad]) => {
+    const en2 = 'the exact same character, same outfit and colors, ' + en;
+    uretimKarti({ desc, en: en2, o: { ...o, bakis: b }, seed, model, ref, refScale: 0.7, etiket: ad });
+  });
+  toast('Yön seti üretiliyor: ön, yan, arka', 3000);
+}
+
+/* Referans görsel (IP-Adapter): bu görsele benzeyen yeni üretimler */
+const REF = { b64: null, scale: +(localStorage.getItem('sa-ref-scale') || 0.6) };
+function referansAyarla(c) {
+  if (!c) { REF.b64 = null; $('#refKutu').hidden = true; return; }
+  const t = c.width * c.height > 1024 * 1024 ? (() => { const s = 1024 / Math.max(c.width, c.height); const k = newCanvas(c.width * s, c.height * s); k.getContext('2d').imageSmoothingEnabled = true; k.getContext('2d').drawImage(c, 0, 0, k.width, k.height); return k; })() : c;
+  REF.b64 = t.toDataURL('image/png').split(',')[1];
+  const v = $('#refOnizle'); v.width = t.width; v.height = t.height; v.getContext('2d').drawImage(t, 0, 0); showScaled(v, 64);
+  $('#refKutu').hidden = false;
+  toast('Referans ayarlandı: yeni üretimler buna benzeyecek', 3000);
+}
+$('#btnRefSec').onclick = async () => { const [it] = await pickFromGallery('Referans görsel seç', false); if (it) referansAyarla(await blobToCanvas(it.blob)); };
+$('#btnRefTemizle').onclick = () => referansAyarla(null);
+$('#refScale').value = REF.scale; $('#oRef').textContent = REF.scale;
+$('#refScale').oninput = e => { REF.scale = +e.target.value; $('#oRef').textContent = REF.scale; localStorage.setItem('sa-ref-scale', REF.scale); };
+
+/* Oyun stilleri: oyun başına kayıtlı reçete + stil (+ referans) */
+const VARSAYILAN_STILLER = {
+  'Efsane Kartlar': { stil: 'pixel', recete: 'mythological legendary hero, vivid saturated colors, detailed heroic pixel art' },
+  'Zombi Savunma': { stil: 'pixel', recete: 'gritty post-apocalyptic survival game, muted greens and browns, clean readable silhouette' },
+  'Komando': { stil: 'hd', recete: 'World War II era, realistic military details, muted olive and khaki tones, tactical game art' },
+  'Kule Savunma': { stil: 'cartoon', recete: 'bright fantasy tower defense, cheerful colors, chunky readable shapes' },
+  'Dünya Kutusu': { stil: 'pixel', recete: 'tiny cute world sandbox sim, simple pixel art, 16-bit palette' },
+};
+function stilleriOku() { try { return { ...VARSAYILAN_STILLER, ...JSON.parse(localStorage.getItem('sa-stiller') || '{}') }; } catch { return { ...VARSAYILAN_STILLER }; } }
+function stilListesiCiz() {
+  const sel = $('#oyunStil'), sec = localStorage.getItem('sa-oyun-stil') || '';
+  sel.innerHTML = '<option value="">— Oyun stili yok —</option>' + Object.keys(stilleriOku()).map(k => `<option ${k === sec ? 'selected' : ''}>${escapeHtml(k)}</option>`).join('');
+}
+$('#oyunStil').onchange = async () => {
+  const ad = $('#oyunStil').value; localStorage.setItem('sa-oyun-stil', ad);
+  if (!ad) return;
+  const st = stilleriOku()[ad];
+  if (st.stil) $('#stil').value = st.stil;
+  $('#recete').value = st.recete || '';
+  localStorage.setItem('sa-recete', $('#recete').value);
+  if (st.ref) { const c = await blobToCanvas(new Blob([Uint8Array.from(atob(st.ref), ch => ch.charCodeAt(0))], { type: 'image/png' })); referansAyarla(c); }
+  toast(ad + ' stili seçildi');
+};
+$('#btnStilKaydet').onclick = () => {
+  const ad = prompt('Stil adı (ör. oyunun adı):', $('#oyunStil').value || ''); if (!ad) return;
+  const kayit = JSON.parse(localStorage.getItem('sa-stiller') || '{}');
+  kayit[ad] = { stil: $('#stil').value, recete: $('#recete').value.trim(), ...(REF.b64 && REF.b64.length < 1500000 ? { ref: REF.b64 } : {}) };
+  try { localStorage.setItem('sa-stiller', JSON.stringify(kayit)); } catch { delete kayit[ad].ref; localStorage.setItem('sa-stiller', JSON.stringify(kayit)); }
+  localStorage.setItem('sa-oyun-stil', ad); stilListesiCiz(); toast('Stil kaydedildi: ' + ad);
+};
+stilListesiCiz();
 $('#recete').value = localStorage.getItem('sa-recete') || '';
 $('#seffaf').checked = localStorage.getItem('sa-seffaf') !== '0';
 
 /* ---------------- Atölye ---------------- */
-const WS = { canvas: null, name: 'sprite', history: [] };
-function loadIntoWorkshop(c, name) {
+const WS = { canvas: null, name: 'sprite', history: [], en: '' };
+function loadIntoWorkshop(c, name, en = '') {
   WS.canvas = c;
+  WS.en = en;
   WS.name = name || 'sprite';
   WS.history = [];
   drawWorkshop();
@@ -520,6 +594,8 @@ function drawWorkshop() {
   ctx.clearRect(0, 0, v.width, v.height);
   ctx.drawImage(WS.canvas, 0, 0);
   showScaled(v);
+  const mk = $('#cvMaske');
+  if (mk.width !== v.width || mk.height !== v.height) { mk.width = v.width; mk.height = v.height; }
   $('#atolyeBilgi').textContent = `${WS.name} · ${WS.canvas.width}×${WS.canvas.height} px`;
 }
 function needWS() { if (!WS.canvas) { toast('Önce bir görsel seç'); return false; } return true; }
@@ -697,6 +773,68 @@ $('#btnArka').onclick = () => {
   drawWorkshop();
   toast(r > 0.95 ? 'Neredeyse her şey silindi — toleransı düşür' : r < 0.02 ? 'Pek bir şey silinmedi — toleransı artır' : 'Arka plan silindi');
 };
+/* ---- Yapay zekâ ile düzenleme (metinle / boyayarak) ---- */
+async function aiEdit(c, prompt, strength, maskCanvas) {
+  const { url, key } = modalCfg();
+  if (!url) throw new Error('Modal motor adresi yok');
+  const body = { image: c.toDataURL('image/png').split(',')[1], prompt, strength, style: $('#stil').value === 'pixel' ? 'pixel' : 'other', seed: Math.floor(Math.random() * 1e9), auto: true };
+  if (maskCanvas) body.mask = maskCanvas.toDataURL('image/png').split(',')[1];
+  if (REF.b64) { body.reference = REF.b64; body.ref_scale = Math.min(0.6, REF.scale); }
+  const r = await fetch(url.replace(/\/+$/, '') + '/edit', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Sprite-Key': key }, body: JSON.stringify(body),
+  });
+  if (r.status === 401) throw new Error('Motor anahtarı yanlış');
+  if (!r.ok) throw new Error('Modal hatası ' + r.status);
+  const d = await r.json();
+  return blobToCanvas(new Blob([Uint8Array.from(atob(d.images[0]), ch => ch.charCodeAt(0))], { type: 'image/png' }));
+}
+async function duzenleCalistir(maskeli) {
+  if (!needWS()) return;
+  const metin = $('#duzenMetin').value.trim();
+  if (!metin) return toast('Ne değişsin, yaz');
+  const mk = $('#cvMaske');
+  if (maskeli && !maskeDolu()) return toast('Önce değişecek yeri boya');
+  const btn = maskeli ? $('#btnBoyaCiz') : $('#btnDuzenle');
+  const t = btn.textContent; btn.disabled = true; btn.textContent = 'Çiziliyor...';
+  try {
+    const { en } = await interpret(metin, 'serbest', '');
+    const stil = $('#stil').value;
+    const prompt = [stil === 'pixel' ? 'pixel art' : '', en, WS.en, STIL[stil]].filter(Boolean).join(', ');
+    const out = await aiEdit(WS.canvas, prompt, maskeli ? 0.95 : +$('#duzenGuc').value, maskeli ? mk : null);
+    pushHistory(); WS.canvas = out; drawWorkshop();
+    if (maskeli) maskeTemizle();
+    toast('Düzenlendi — beğenmezsen "Geri al"');
+  } catch (e) { toast('Olmadı: ' + e.message, 4000); }
+  finally { btn.disabled = false; btn.textContent = t; }
+}
+$('#btnDuzenle').onclick = () => duzenleCalistir(false);
+$('#btnBoyaCiz').onclick = () => duzenleCalistir(true);
+$('#duzenGuc').oninput = e => $('#oGuc').textContent = e.target.value;
+$('#firca').oninput = e => $('#oFirca').textContent = e.target.value;
+$('#btnBoyaMod').onclick = () => {
+  if (!needWS()) return;
+  const on = $('#boyaAraclar').hidden;
+  $('#boyaAraclar').hidden = !on;
+  document.querySelector('.boyakap').classList.toggle('on', on);
+  $('#btnBoyaMod').textContent = on ? '✓ Boyama açık' : '🖌 Boyayarak düzenle';
+};
+function maskeTemizle() { const mk = $('#cvMaske'); mk.getContext('2d').clearRect(0, 0, mk.width, mk.height); }
+function maskeDolu() {
+  const mk = $('#cvMaske'), d = mk.getContext('2d').getImageData(0, 0, mk.width, mk.height).data;
+  for (let i = 3; i < d.length; i += 16) if (d[i]) return true;
+  return false;
+}
+$('#btnBoyaTemizle').onclick = maskeTemizle;
+(() => {
+  const mk = $('#cvMaske'); let ciz = false, son = null;
+  const nokta = e => { const r = mk.getBoundingClientRect(); return [(e.clientX - r.left) * mk.width / r.width, (e.clientY - r.top) * mk.height / r.height]; };
+  const firca = () => +$('#firca').value * mk.width / Math.max(1, mk.getBoundingClientRect().width);
+  const cizgi = (a, b) => { const x = mk.getContext('2d'); x.strokeStyle = x.fillStyle = '#ff3b6b'; x.lineWidth = firca(); x.lineCap = 'round'; x.beginPath(); x.moveTo(...a); x.lineTo(...b); x.stroke(); };
+  mk.addEventListener('pointerdown', e => { ciz = true; son = nokta(e); cizgi(son, son); mk.setPointerCapture(e.pointerId); e.preventDefault(); });
+  mk.addEventListener('pointermove', e => { if (!ciz) return; const p = nokta(e); cizgi(son, p); son = p; e.preventDefault(); });
+  ['pointerup', 'pointercancel'].forEach(t => mk.addEventListener(t, () => { ciz = false; }));
+})();
+
 /* Parçalara ayır: arka planı silinmiş görselde birbirinden ayrı duran figürleri ayrı sprite yap */
 function splitComponents(c, minFrac = 0.01) {
   const w = c.width, h = c.height;
