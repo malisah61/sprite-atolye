@@ -17,10 +17,13 @@ Uç nokta (POST /generate):
 POST /edit   {"image", "prompt", "strength", "mask"?, "reference"?} → metinle düzenleme / boyayarak (inpaint)
 POST /rembg  {"image": "<base64>"} → {"image": "<base64 RGBA png>"}
 """
+import os
+
 import modal
 
-APP_NAME = "sprite-atolye"
-BASE = "stabilityai/stable-diffusion-xl-base-1.0"
+# Kurulumda MOTOR_MODEL / MOTOR_APP verilerek aynı kodla deneme motoru kurulabilir (karşılaştırma için).
+APP_NAME = os.environ.get("MOTOR_APP", "sprite-atolye")
+BASE = os.environ.get("MOTOR_MODEL", "stabilityai/stable-diffusion-xl-base-1.0")
 VAE = "madebyollin/sdxl-vae-fp16-fix"
 PIXEL_LORA = "nerijs/pixel-art-xl"
 PIXEL_LORA_FILE = "pixel-art-xl.safetensors"
@@ -31,11 +34,18 @@ IPA_FILE = "ip-adapter_sdxl_vit-h.safetensors"
 def download_models():
     from huggingface_hub import snapshot_download, hf_hub_download
 
+    from huggingface_hub import list_repo_files
+
+    files = list_repo_files(BASE)
+    fp16 = any(f.startswith("unet/") and f.endswith(".fp16.safetensors") for f in files)
+    ag = "*.fp16.safetensors" if fp16 else "*.safetensors"
     snapshot_download(
         BASE,
-        allow_patterns=["*.json", "*.txt", "unet/*.fp16.safetensors", "text_encoder*/*.fp16.safetensors",
+        allow_patterns=["*.json", "*.txt", f"unet/{ag}", f"text_encoder*/{ag}",
                         "tokenizer*/*", "scheduler/*", "model_index.json"],
+        ignore_patterns=[] if fp16 else ["*.fp16.safetensors", "*fp16*"],
     )
+    open("/root/base_variant.txt", "w").write("fp16" if fp16 else "")
     snapshot_download(VAE, allow_patterns=["*.json", "*.safetensors"])
     hf_hub_download(PIXEL_LORA, PIXEL_LORA_FILE)
     # IP-Adapter (referans görselle tutarlı karakter) + görüntü kodlayıcı
@@ -223,6 +233,7 @@ image = (
         "fastapi[standard]==0.115.5",
         "pillow==11.0.0",
     )
+    .env({"MOTOR_MODEL": BASE, "MOTOR_APP": APP_NAME})
     .run_function(download_models)
     .pip_install("rembg==2.0.59", "onnxruntime==1.19.2", "scipy")
     .run_function(download_rembg)
@@ -246,8 +257,9 @@ class Motor:
         from diffusers import AutoencoderKL, DPMSolverMultistepScheduler, StableDiffusionXLPipeline
 
         vae = AutoencoderKL.from_pretrained(VAE, torch_dtype=torch.float16)
+        variant = open("/root/base_variant.txt").read().strip() or None
         pipe = StableDiffusionXLPipeline.from_pretrained(
-            BASE, vae=vae, torch_dtype=torch.float16, variant="fp16", use_safetensors=True
+            BASE, vae=vae, torch_dtype=torch.float16, variant=variant, use_safetensors=True
         )
         pipe.scheduler = DPMSolverMultistepScheduler.from_config(
             pipe.scheduler.config, use_karras_sigmas=True
@@ -417,7 +429,7 @@ class Motor:
 
         @api.get("/")
         def health():
-            return {"ok": True, "motor": "sdxl+pixel-art-xl+ip-adapter", "gpu": "T4",
+            return {"ok": True, "motor": "sdxl+pixel-art-xl+ip-adapter", "model": BASE, "gpu": "T4",
                     "ozellikler": ["generate", "reference", "tileable", "edit", "inpaint", "rembg"]}
 
         @api.post("/generate")

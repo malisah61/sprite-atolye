@@ -1,0 +1,60 @@
+name: Model karşılaştır
+
+# Aynı kodla ikinci bir (deneme) motor kurar, canlı motorla aynı tarif + seed ile yan yana üretir,
+# sonuçları deneme-sonuclari dalına (karsilastirma/) koyar ve deneme motorunu durdurur.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'Denenecek SDXL modeli (HuggingFace, diffusers formatı)'
+        default: 'Lykon/dreamshaper-xl-1-0'
+      seed:
+        default: '42'
+
+permissions:
+  contents: write
+
+jobs:
+  karsilastir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      SPRITE_KEY: ${{ secrets.SPRITE_KEY }}
+      ESKI_URL: https://malisah61--sprite-atolye-motor-web.us-east.modal.run
+      YENI_MODEL: ${{ inputs.model }}
+      SEED: ${{ inputs.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install --quiet modal pillow
+      - name: Deneme motorunu kur
+        env:
+          MOTOR_APP: sprite-atolye-deneme
+          MOTOR_MODEL: ${{ inputs.model }}
+        run: |
+          set -o pipefail
+          modal deploy modal/app.py 2>&1 | tee deploy.log
+          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.modal\.run' deploy.log | head -1)
+          echo "YENI_URL=$URL" >> "$GITHUB_ENV"
+          echo "### Deneme motoru: $URL ($MOTOR_MODEL)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Yan yana üret
+        run: python3 modal/karsilastir.py
+      - name: Deneme motorunu durdur (kredi yemesin)
+        if: always()
+        run: modal app stop sprite-atolye-deneme || true
+      - name: Sonuçları kaydet (deneme-sonuclari dalı)
+        if: always()
+        run: |
+          ls kars_*.png >/dev/null 2>&1 || exit 0
+          mkdir -p /tmp/out && cp kars_*.png /tmp/out/
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          for i in 1 2 3; do
+            git fetch origin deneme-sonuclari && git checkout -f -B deneme-sonuclari origin/deneme-sonuclari || git checkout --orphan deneme-sonuclari
+            D="karsilastirma/$(date -u +%Y%m%d-%H%M)"; mkdir -p "$D" && cp /tmp/out/*.png "$D/"
+            git add karsilastirma && git commit -qm "Karşılaştırma: ${{ inputs.model }}" && git push -q origin deneme-sonuclari && break
+            sleep 5
+          done
