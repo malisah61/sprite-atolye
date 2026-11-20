@@ -1,0 +1,21 @@
+name: LoRA ara (lisans kontrolü)
+
+# HuggingFace'te ticari lisanslı SDXL LoRA'larını listeler. Modal kullanmaz, kredi harcamaz.
+on:
+  workflow_dispatch:
+    inputs:
+      kelimeler:
+        description: 'Virgülle ayrılmış arama kelimeleri'
+        default: 'cartoon,chibi,dark fantasy,painterly,game icon,game asset'
+
+jobs:
+  ara:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install --quiet huggingface_hub
+      - run: python3 modal/lora_ara.py "${{ inputs.kelimeler }}"
