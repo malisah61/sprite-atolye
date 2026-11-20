@@ -94,7 +94,7 @@ if "img" in ana:
 def karisik():
     d, s = post("/generate", {"prompt": "long snake body with no legs and no arms, coiled scaly tail, monkey head with red eyes and fangs, solo, one single creature alone, full body 2D game enemy, high quality 2D game art, side view, simple background, isolated on a plain flat solid medium gray background",
                               "seed": 33, "n": 1, "width": 1216, "height": 832, "style": "other", "auto": True,
-                              "parts": [{"name": "head", "want": "monkey head with red eyes and fangs"}], "base": "snake",
+                              "parts": [{"name": "head", "want": "monkey head with red eyes and fangs"}], "base": "snake", "absent": ["legs", "arms"],
                               "style_text": "high quality 2D game art, hand painted"})
     kaydet("karisik_maymun_yilan", d["images"][0])
     yaz(f"Otomatik parça kontrolü: {d.get('fixes')} · GPU {d['seconds']} sn")

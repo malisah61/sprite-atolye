@@ -243,7 +243,8 @@ async function interpret(text, tur, cins, bakis = 'front') {
     'For hybrid creatures say exactly which body part comes from which animal and what is missing (e.g. "long snake body with no legs and no arms, coiled tail, monkey head"), so the body type is not lost. ' +
     'Keep every concrete detail that is given, never drop one. ' + g +
     'Do not mention background, art style, lighting or camera. Reply with one line of comma-separated phrases, at most 50 words. ' +
-    'ONLY if it is a hybrid of different animals/beings, add one more final line exactly like: PARTS=head:monkey head with red eyes and fangs;wings:bat wings|BASE=snake ' +
+    'ONLY if it is a hybrid of different animals/beings, add one more final line exactly like: PARTS=head:monkey head with red eyes and fangs;wings:bat wings|BASE=snake|NO=legs,arms ' +
+    '(NO = body parts that must NOT exist, e.g. legs for a snake body; write NO= empty if none) ' +
     '(parts are simple English body-part nouns taken from the NON-base animal; BASE is the animal of the main body). No other text.\n\nDescription: ' + text;
   try {
     const ac = new AbortController();
@@ -252,11 +253,12 @@ async function interpret(text, tur, cins, bakis = 'front') {
     clearTimeout(to);
     if (r.ok) {
       let raw = (await r.text()).trim();
-      let rt = tur, rb = bakis, parts = null, base = '';
-      const pm = raw.match(/PARTS\s*=\s*([^|\n]+)\|\s*BASE\s*=\s*([^\n]+)/i);
+      let rt = tur, rb = bakis, parts = null, base = '', absent = [];
+      const pm = raw.match(/PARTS\s*=\s*([^|\n]*)\|\s*BASE\s*=\s*([^|\n]+)(?:\|\s*NO\s*=\s*([^\n]*))?/i);
       if (pm) {
         parts = pm[1].split(';').map(x => { const i = x.indexOf(':'); return i > 0 ? { name: x.slice(0, i).trim(), want: x.slice(i + 1).trim() } : null; }).filter(p => p && p.name && p.want).slice(0, 3);
         base = pm[2].trim().replace(/[.\s]+$/, '');
+        absent = (pm[3] || '').split(/[,;]/).map(x => x.trim().replace(/[.]+$/, '')).filter(x => x && !/^(none|empty|-)$/i.test(x)).slice(0, 3);
         raw = raw.replace(pm[0], '');
       }
       const m = raw.match(/TYPE\s*=\s*(\w+)\s*;?\s*VIEW\s*=\s*(\w+)/i);
@@ -270,7 +272,7 @@ async function interpret(text, tur, cins, bakis = 'front') {
       if (out && out.length < 600 && !/^(sorry|i can)/i.test(out)) {
         if (rt === 'auto') rt = guessTur(text);
         if (rb === 'auto') rb = guessBakis(text, rt);
-        const res = { en: out, tur: rt, bakis: rb, parts: parts && parts.length ? parts : null, base };
+        const res = { en: out, tur: rt, bakis: rb, parts: parts && parts.length ? parts : null, base, absent: absent.length ? absent : null };
         trCache.set(key, res); return res;
       }
     }
@@ -352,7 +354,7 @@ const ENGINES = {
   modal: {
     name: 'Modal (kendi GPU)',
     minGap: 0,
-    async generate({ prompt, seed, stil, negatif, w = 1024, h = 1024, seffaf = false, ref = null, refScale = 0.6, tile = false, parts = null, base = '', styleText = '' }) {
+    async generate({ prompt, seed, stil, negatif, w = 1024, h = 1024, seffaf = false, ref = null, refScale = 0.6, tile = false, parts = null, base = '', absent = null, styleText = '' }) {
       const { url, key } = modalCfg();
       const ac = new AbortController();
       const to = setTimeout(() => ac.abort(), 300000);
@@ -362,7 +364,7 @@ const ENGINES = {
           headers: { 'Content-Type': 'application/json', 'X-Sprite-Key': key },
           body: JSON.stringify({ prompt, seed, n: 1, width: w, height: h, auto: seffaf, style: stil === 'pixel' ? 'pixel' : 'other', negative: negatif || undefined,
             reference: ref || undefined, ref_scale: refScale, tileable: tile,
-            parts: parts || undefined, base, style_text: styleText }),
+            parts: parts || undefined, base, absent: absent || undefined, style_text: styleText }),
         });
         if (r.status === 401) throw new Error('Motor anahtarı yanlış');
         if (!r.ok) throw new Error('Modal hatası ' + r.status);
@@ -379,7 +381,7 @@ const ENGINES = {
 const PARCA_TR = { head: 'kafa', face: 'yüz', wings: 'kanat', wing: 'kanat', tail: 'kuyruk', arms: 'kollar', arm: 'kol', legs: 'bacaklar', body: 'gövde', horns: 'boynuz', hands: 'eller' };
 function duzeltmeOzeti(f) {
   if (!f || !f.length) return '';
-  return ' · oto-kontrol: ' + f.map(x => x.hata ? 'hata' : `${PARCA_TR[x.parca] || x.parca} ${x.durum === 'tuttu' ? '✓' : x.durum === 'düzeltildi' ? '✓ düzeltildi' : x.durum === 'bulunamadı' ? '?' : '✗ zayıf'}`).join(', ');
+  return ' · oto-kontrol: ' + f.map(x => x.hata ? 'hata' : `${PARCA_TR[x.parca] || x.parca} ${({ 'tuttu': '✓', 'düzeltildi': '✓ düzeltildi', 'bulunamadı': '?', 'yok ✓': 'yok ✓', 'silindi': 'silindi ✓', 'silinemedi': 'silinemedi ✗' })[x.durum] || '✗ zayıf'}`).join(', ');
 }
 const DEFAULT_MODAL_URL = 'https://malisah61--sprite-atolye-motor-web.us-east.modal.run';
 function modalCfg() {
@@ -452,7 +454,7 @@ async function runQueue() {
   $('#durum').textContent = 'Hazır. Motor: ' + engine.name + ' (ücretsiz).';
 }
 
-let lastDesc = '', lastYorum = '', lastTur = '', lastBakis = '', lastParts = null, lastBase = '';
+let lastDesc = '', lastYorum = '', lastTur = '', lastBakis = '', lastParts = null, lastBase = '', lastAbsent = null;
 $('#tur').onchange = () => { $('#cinsKutu').hidden = !['auto', 'karakter', 'dusman'].includes($('#tur').value); };
 $('#btnUret').onclick = async () => {
   const desc = $('#prompt').value.trim();
@@ -477,14 +479,14 @@ $('#btnUret').onclick = async () => {
     if (o.bakis === 'auto') o.bakis = guessBakis(desc, o.tur);
   } else if (desc === lastDesc && $('#yorum').value.trim() && $('#yorum').value.trim() !== lastYorum) {
     en = $('#yorum').value.trim(); // elle düzeltilmiş yorum
-    o.parts = lastParts; o.base = lastBase;
+    o.parts = lastParts; o.base = lastBase; o.absent = lastAbsent;
     if (o.tur === 'auto') o.tur = lastTur || guessTur(desc);
     if (o.bakis === 'auto') o.bakis = lastBakis || guessBakis(desc, o.tur);
   } else {
     $('#durum').textContent = 'Tarif yorumlanıyor...';
     const r = await interpret(desc, o.tur, cins, o.bakis);
-    en = r.en; o.tur = r.tur; o.bakis = r.bakis; o.parts = r.parts; o.base = r.base;
-    lastParts = r.parts; lastBase = r.base;
+    en = r.en; o.tur = r.tur; o.bakis = r.bakis; o.parts = r.parts; o.base = r.base; o.absent = r.absent;
+    lastParts = r.parts; lastBase = r.base; lastAbsent = r.absent;
   }
   lastTur = o.tur; lastBakis = o.bakis;
   if (o.tur === 'tile') o.seffaf = false;
@@ -507,7 +509,7 @@ function uretimKarti({ desc, en, o, seed, model, ref = null, refScale = 0.6, eti
   const w = card.querySelector('.wait');
   enqueue({
     params: { prompt, seed, model, stil: o.stil, negatif: o.negatif, seffaf: o.seffaf, ref, refScale, tile: o.tur === 'tile',
-      parts: o.parts || null, base: o.base || '', styleText: STIL[o.stil] || '', ...sizeFor(o.tur, o.bakis) },
+      parts: o.parts || null, base: o.base || '', absent: o.absent || null, styleText: STIL[o.stil] || '', ...sizeFor(o.tur, o.bakis) },
     onWait: s => { w.textContent = `Sırada · ${s} sn`; $('#durum').textContent = `Sıra: ${queue.length + 1} iş bekliyor`; },
     onStart: eng => { w.textContent = 'Üretiliyor (' + eng.name + ')...'; card.querySelector('.meta').textContent += ' · ' + eng.name.split(' ')[0]; },
     onDone: c => {

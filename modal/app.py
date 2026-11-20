@@ -439,13 +439,31 @@ class Motor:
             p = self.clip(**inp).logits_per_image.float().softmax(-1)[0, 0].item()
         return p
 
-    def _fix_parts(self, im, parts, base, style_text, negative, seed, ipa):
-        """Tarifteki parçalar resimde tutmamışsa o bölgeyi bulup yeniden çizer. Kayıt döner."""
+    def _fix_parts(self, im, parts, base, style_text, negative, seed, ipa, absent=None):
+        """Tarifteki parçalar resimde tutmamışsa o bölgeyi bulup yeniden çizer; olmaması gereken parçaları siler. Kayıt döner."""
+        import numpy as np
         import torch
         from PIL import Image
 
         log = []
         im = im.convert("RGB")
+        # 1) olmaması gereken parçalar (ör. yılanda bacak): bulunursa o bölgeyi gövdenin devamı olarak yeniden çiz
+        for j, name in enumerate((absent or [])[:3]):
+            name = str(name).strip()[:30]
+            if not name:
+                continue
+            mask, oran, box = self._part_mask(im, name)
+            if mask is None or oran < 0.01:
+                log.append({"parca": name, "durum": "yok ✓"})
+                continue
+            g = torch.Generator("cuda").manual_seed(seed + 211 + j)
+            govde = f"{base} body" if base else "body"
+            im = self.inp(prompt=f"smooth continuous {govde}, seamless, {style_text}",
+                          negative_prompt=f"{name}, limbs, {negative}", image=im, mask_image=mask,
+                          width=im.width, height=im.height, strength=0.95, num_inference_steps=28,
+                          guidance_scale=7.0, generator=g, ip_adapter_image=ipa).images[0]
+            m2, oran2, _ = self._part_mask(im, name)
+            log.append({"parca": name, "durum": "silindi" if (m2 is None or oran2 < oran * 0.5) else "silinemedi"})
         for i, part in enumerate(parts[:3]):
             name = str(part.get("name", "")).strip()[:40]
             want = str(part.get("want", "")).strip()[:200]
@@ -473,7 +491,7 @@ class Motor:
         return im, log
 
     def _run(self, prompt, negative, seed, n, width, height, style, transparent=False, auto=False, native=False,
-             ref_img=None, ref_scale=0.6, tileable=False, parts=None, base="", style_text=""):
+             ref_img=None, ref_scale=0.6, tileable=False, parts=None, base="", style_text="", absent=None):
         import base64
         import io
         import time
@@ -503,11 +521,11 @@ class Motor:
         if tileable:  # dokular kesilmez, temizlenmez
             transparent = auto = False
         fixes = []
-        if parts and not tileable:
+        if (parts or absent) and not tileable:
             yeni = []
             for k, im in enumerate(out):
                 try:
-                    im, log = self._fix_parts(im, parts, base, style_text, negative, seed + k, ipa)
+                    im, log = self._fix_parts(im, parts or [], base, style_text, negative, seed + k, ipa, absent)
                 except Exception as e:  # noqa
                     log = [{"hata": str(e)[:200]}]
                 yeni.append(im); fixes.append(log)
@@ -560,8 +578,9 @@ class Motor:
             parts = body.get("parts") if isinstance(body.get("parts"), list) else None
             base = str(body.get("base", ""))[:60]
             style_text = str(body.get("style_text", "high quality 2D game art"))[:200]
+            absent = body.get("absent") if isinstance(body.get("absent"), list) else None
             return self._run(prompt, negative, seed, n, width, height, style, transparent, auto, native,
-                             ref_img, ref_scale, tileable, parts, base, style_text)
+                             ref_img, ref_scale, tileable, parts, base, style_text, absent)
 
         @api.post("/edit")
         def edit(body: dict, x_sprite_key: str = Header(default="")):
