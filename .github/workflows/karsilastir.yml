@@ -45,7 +45,7 @@ jobs:
         run: python3 modal/karsilastir.py
       - name: Deneme motorunu durdur (kredi yemesin)
         if: always()
-        run: modal app stop sprite-atolye-deneme || true
+        run: modal app stop -y sprite-atolye-deneme || true
       - name: Sonuçları kaydet (deneme-sonuclari dalı)
         if: always()
         run: |

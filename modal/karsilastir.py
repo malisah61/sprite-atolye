@@ -10,6 +10,10 @@ import urllib.request
 
 from PIL import Image, ImageDraw, ImageFont
 
+# Modal uzun süren isteklerde (soğuk başlangıç) 303 ile aynı adrese yönlendirir; urllib'in döngü sınırını büyüt
+urllib.request.HTTPRedirectHandler.max_repeats = 200
+urllib.request.HTTPRedirectHandler.max_redirections = 200
+
 ESKI = os.environ["ESKI_URL"].rstrip("/")
 YENI = os.environ["YENI_URL"].rstrip("/")
 KEY = os.environ.get("SPRITE_KEY", "")
@@ -50,8 +54,14 @@ def b2i(b):
     return Image.open(io.BytesIO(base64.b64decode(b))).convert("RGB")
 
 
-print(urllib.request.urlopen(ESKI + "/", timeout=900).read().decode())
-print(urllib.request.urlopen(YENI + "/", timeout=900).read().decode())
+for u in (ESKI, YENI):
+    for deneme in range(5):
+        try:
+            print(urllib.request.urlopen(u + "/", timeout=900).read().decode(), flush=True)
+            break
+        except Exception as e:  # noqa
+            yaz(f"motor uyanıyor ({u}): {e}")
+            time.sleep(15)
 
 sonuc = {}
 for ad, stil, w, h, prompt in TARIFLER:
