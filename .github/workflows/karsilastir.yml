@@ -38,6 +38,7 @@ jobs:
           MOTOR_MEM: '24576'
         run: |
           set -o pipefail
+          grep -q MOTOR_MODEL modal/app.py || { echo "::error::modal/app.py model seçimini (MOTOR_MODEL) desteklemiyor"; exit 1; }
           modal deploy modal/app.py 2>&1 | tee deploy.log
           URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.modal\.run' deploy.log | head -1)
           echo "YENI_URL=$URL" >> "$GITHUB_ENV"

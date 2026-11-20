@@ -11,8 +11,8 @@ import urllib.request
 from PIL import Image, ImageDraw, ImageFont
 
 # Modal uzun süren isteklerde (soğuk başlangıç) 303 ile aynı adrese yönlendirir; urllib'in döngü sınırını büyüt
-urllib.request.HTTPRedirectHandler.max_repeats = 200
-urllib.request.HTTPRedirectHandler.max_redirections = 200
+urllib.request.HTTPRedirectHandler.max_repeats = 6  # ~15 dk: daha uzun beklemek kredi yakar
+urllib.request.HTTPRedirectHandler.max_redirections = 8
 
 ESKI = os.environ["ESKI_URL"].rstrip("/")
 YENI = os.environ["YENI_URL"].rstrip("/")
