@@ -440,26 +440,31 @@ class Motor:
             p = self.clip(**inp).logits_per_image.float().softmax(-1)[0, 0].item()
         return p
 
-    def _score(self, im, parts, absent, base):
-        """Görsel tarife ne kadar uyuyor (0-1): istenen parçalar doğru mu, olmaması gerekenler yok mu."""
-        puan, say = 0.0, 0
+    def _score(self, im, parts, absent, base, detay=False):
+        """Görsel tarife ne kadar uyuyor. Gövde yapısı (olmaması gereken parçalar yok mu) öncelikli,
+        çünkü sonradan silmek iz bırakır; istenen parçalar (ör. kafa) sonradan temizce düzeltilebilir."""
         im = im.convert("RGB")
+        parca_puan, yok_puan = [], []
         for part in (parts or [])[:3]:
             name, want = str(part.get("name", "")), str(part.get("want", ""))
             if not name or not want:
                 continue
             mask, oran, box = self._part_mask(im, name)
-            say += 1
             if mask is None:
+                parca_puan.append(0.0)
                 continue
             pad = int(0.1 * max(box[2] - box[0], box[3] - box[1]))
             crop = im.crop((max(0, box[0] - pad), max(0, box[1] - pad), min(im.width, box[2] + pad), min(im.height, box[3] + pad)))
-            puan += self._clip_pref(crop, want, f"{base} {name}" if base else f"ordinary {name}")
+            parca_puan.append(self._clip_pref(crop, want, f"{base} {name}" if base else f"ordinary {name}"))
         for name in (absent or [])[:3]:
             mask, oran, _ = self._part_mask(im, str(name))
-            say += 1
-            puan += 1.0 - min(1.0, oran * 25)  # parça alanı %4 ve üstü → tam ceza
-        return puan / say if say else 1.0
+            yok_puan.append(1.0 - min(1.0, oran * 25))  # parça alanı %4 ve üstü → tam ceza
+        yapi = min(yok_puan) if yok_puan else 1.0
+        parca = sum(parca_puan) / len(parca_puan) if parca_puan else 1.0
+        toplam = 0.7 * yapi + 0.3 * parca
+        if detay:
+            return toplam, yapi, parca_puan
+        return toplam
 
     def _sec(self, prompt, negative, width, height, seed, ipa, parts, absent, base, aday=4):
         """Baştan doğru çizim: hızlı taslaklar üret, tarife en uygun olanın seed'ini seç."""
@@ -583,8 +588,8 @@ class Motor:
             for k, im in enumerate(out):
                 log = [secimler[k]] if k < len(secimler) else []
                 try:
-                    son = self._score(im, parts, absent, base)
-                    if son >= 0.6:
+                    son, yapi, pp = self._score(im, parts, absent, base, detay=True)
+                    if yapi >= 0.9 and all(x >= 0.55 for x in pp):
                         log.append({"parca": "sonuç", "durum": "tarife uygun", "skor": round(son, 2)})
                     else:  # nadir: seçilen taslak bile tam tutmadıysa parçayı düzelt (yedek yol)
                         im, l2 = self._fix_parts(im, parts or [], base, style_text, negative, seed + k, ipa, absent, prompt)
