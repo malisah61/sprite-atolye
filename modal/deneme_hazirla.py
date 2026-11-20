@@ -51,6 +51,31 @@ s2 = s2.replace('torch_dtype=torch.float16, variant="fp16", use_safetensors=True
                 f'torch_dtype=torch.float16, variant={variant}, use_safetensors={"False" if desen == "*.bin" else "True"}')
 s2 = s2.replace("        self.rb = new_session(\"isnet-general-use\")\n",
                 "        self.rb = new_session(\"isnet-general-use\")\n        print('[deneme motor] hazır', flush=True)\n", 1)
+# `modal run` ile çalıştırmak için: doğrudan çağrılabilir üretim metodu + yerel giriş noktası.
+# (modal run konteyner kayıtlarını Actions çıktısına akıtır ve iş bitince uygulamayı kendisi kapatır.)
+s2 = s2.replace("    @modal.asgi_app()\n", '''    @modal.method()
+    def uret(self, b):
+        return self._run(b["prompt"], b["negative"], int(b["seed"]), int(b.get("n", 1)), int(b["width"]), int(b["height"]),
+                         b.get("style", "pixel"), False, bool(b.get("auto", False)), False,
+                         self._ref(b.get("reference")), float(b.get("ref_scale", 0.6)), False)
+
+    @modal.asgi_app()
+''', 1)
+s2 += '''
+
+@app.local_entrypoint()
+def karsilastir_yerel():
+    import os as _os
+    import sys as _sys
+
+    _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+    import karsilastir
+
+    m = Motor()
+    karsilastir.calistir(lambda body: m.uret.remote(body))
+'''
+if "def uret(self, b)" not in s2:
+    print("❌ asgi_app bulunamadı"); sys.exit(1)
 if f'BASE = "{model}"' not in s2 or f'"unet/{desen}"' not in s2 or f"variant={variant}" not in s2:
     print("❌ app.py beklenen biçimde değil, deneme dosyası hazırlanamadı"); sys.exit(1)
 open("modal/deneme_app.py", "w").write(s2)

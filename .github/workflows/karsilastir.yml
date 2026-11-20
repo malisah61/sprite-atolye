@@ -37,22 +37,9 @@ jobs:
       - run: pip install --quiet modal pillow huggingface_hub
       - name: Model dosyalarını incele, deneme motoru dosyasını hazırla (canlı app.py'ye dokunmaz)
         run: python3 modal/deneme_hazirla.py "${{ inputs.model }}"
-      - name: Deneme motorunu kur
+      - name: Deneme motoruyla yan yana üret (modal run — kayıtlar burada görünür, bitince kendi kapanır)
         if: ${{ !inputs.sadece_liste }}
-        run: |
-          set -o pipefail
-          modal deploy modal/deneme_app.py 2>&1 | tee deploy.log
-          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.modal\.run' deploy.log | head -1)
-          echo "YENI_URL=$URL" >> "$GITHUB_ENV"
-          echo "### Deneme motoru: $URL (${{ inputs.model }})" >> "$GITHUB_STEP_SUMMARY"
-      - name: Yan yana üret
-        if: ${{ !inputs.sadece_liste }}
-        run: |
-          (timeout 2400 modal app logs sprite-atolye-deneme > applogs.txt 2>&1 &)
-          python3 modal/karsilastir.py
-      - name: Deneme motoru kayıtları
-        if: ${{ always() && !inputs.sadece_liste }}
-        run: tail -n 120 applogs.txt || true
+        run: timeout 2700 modal run modal/deneme_app.py::karsilastir_yerel
       - name: Deneme motorunu durdur (kredi yemesin)
         if: ${{ always() && !inputs.sadece_liste }}
         run: modal app stop -y sprite-atolye-deneme || true
