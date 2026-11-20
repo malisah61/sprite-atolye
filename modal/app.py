@@ -287,6 +287,21 @@ class Motor:
         self.last_plain = busy < 0.15  # kenar şeridinin %15'inden fazlası arka plandan farklıysa: desen/çerçeve/sahne
         if not self.last_plain and not force:
             self.last_bg = None
+            # sahne/desenli arka plan: yine de ana figürü çıkarmayı dene; tek ve makul boyutlu bir figür çıkarsa onu ver
+            try:
+                from scipy import ndimage
+
+                cut = drop_debris(remove(im.convert("RGB"), session=self.rb, post_process_mask=True))
+                al = np.array(cut)[..., 3] > 0
+                frac = float(al.mean())
+                lab, n = ndimage.label(al, structure=np.ones((3, 3)))
+                if n and 0.04 < frac < 0.85:
+                    big = np.bincount(lab.ravel())[1:].max() / max(1, al.sum())
+                    if big > 0.7:
+                        self.last_plain = True  # figür başarıyla ayrıldı
+                        return cut
+            except Exception as e:  # noqa
+                print("sahne kesimi olmadı:", e)
             return im.convert("RGBA")
         raw = remove(im.convert("RGB"), session=self.rb, post_process_mask=True)
         out = fill_holes(rgb, raw, bg)
