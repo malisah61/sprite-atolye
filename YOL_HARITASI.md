@@ -4,7 +4,13 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 
 ## 0. Görsel kalitesi (öncelikli)
 - ✅ a) İnce ayarlı ana model → **Lykon/dreamshaper-xl-1-0** (openrail++, ticari kullanım serbest). Karşılaştırma: `karsilastir.yml` (deneme motoru `modal run` ile, canlıya dokunmadan). 20 Kasım sonucu: pixel zombi ve HD aslanda belirgin daha detaylı, kılıç benzer, çizgi film kadında iki model de karakter sayfası üretti (negatife "reference sheet, model sheet, multiple poses" eklendi). pixel-art-xl LoRA ve IP-Adapter yeni modelle çalışıyor. Açılmama sebebi: DreamShaper'ın DEIS zamanlayıcı ayarı → DPM++ 2M Karras zorlandı. Eskiye dönüş: app.py'de BASE satırı.
-- ⬜ b) Stile özel LoRA'lar (çizgi film, chibi, karanlık fantastik, HD)
+- 🔄 b) Stile özel LoRA'lar (çizgi film, chibi, karanlık fantastik, HD) — aday listesi `lora_ara.yml` ile çıkarıldı (20 Kasım). Öncelik orijinal yazarın yüklediği, lisansı açık olanlar:
+  - çizgi film: `issaccyj/lora-sdxl-cartoonillustration` (openrail++), `ntc-ai/SDXL-LoRA-slider.cartoon` (mit, kaydırıcı)
+  - chibi: `strkyyy/anime-chibi` (openrail++)
+  - karanlık fantastik: `Geroloq/darkfantasy_style_LoRA` (openrail++)
+  - "Muapi/..." depoları Civitai'den yeniden yüklenmiş; lisans etiketi asıl yazarın şartlarını yansıtmayabilir → kullanma. Oyun/marka adı geçenler (diablo, nendoroid) → kullanma.
+  - Sonraki adım: deneme motoruna (karsilastir.yml benzeri) LoRA'ları ekleyip stil başına örnek üret, bak, ağırlık seç.
+- Bilinen eski sorun: test_motor'daki boyayarak düzenleme testinde (üst %25 maske) kafa siliniyor — eski modelde de vardı; maske/temizlik ayarına bakılacak.
 - ⬜ c) İki aşamalı üretim (hi-res fix) + sitede "Ekstra kalite"
 - ⬜ d) Yüz düzeltme
 - ⬜ e) "En iyisini seç" (estetik/CLIP puanı)
@@ -23,7 +29,7 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 
 ## Gece günlüğü
 - 2026-11-20: 0a başladı — karşılaştırma iş akışı eklendi; DreamShaper deneme motoru açılmadı (3/3 deneme hakkı kullanıldı), canlı motor değişmedi.
-- 2026-11-20 (gündüz, elle başlatıldı): sebep bulundu (zamanlayıcı), karşılaştırma tamamlandı, ana model DreamShaper XL'e geçti.
+- 2026-11-20 (gündüz, elle başlatıldı): sebep bulundu (zamanlayıcı), karşılaştırma tamamlandı, ana model DreamShaper XL'e geçti; canlı testler geçti. LoRA aday listesi çıkarıldı (0b hazırlığı).
 
 ## Tahmini Modal harcaması (Kasım 2026)
 - 19-20 Kasım: ~17 motor kurulumu + ~8 üretim + 3 karşılaştırma denemesi → tahmini 2-4 $ (20 $ sınırının çok altında).
