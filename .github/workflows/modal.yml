@@ -58,35 +58,11 @@ jobs:
           echo "MOTOR_URL=$URL" >> "$GITHUB_ENV"
           echo "### Motor adresi: $URL" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Deneme üretimi (süre ölçümü)
+      - name: Deneme üretimi (tüm özellikler)
         if: steps.chk.outputs.ok == 'true' && (github.event_name == 'push' || inputs.test)
         run: |
-          set -e
-          echo "Sağlık kontrolü (soğuk başlangıç uzun sürebilir)..."
-          curl -sS --max-time 600 "$MOTOR_URL/" ; echo
-          for i in 1 2; do
-            START=$(date +%s)
-            curl -sS --max-time 600 -X POST "$MOTOR_URL/generate" \
-              -H "Content-Type: application/json" -H "X-Sprite-Key: $SPRITE_KEY" \
-              -d '{"prompt":"pixel art, green zombie, solo, one single character alone, full body 2D game character, side view, plain flat solid medium gray background","seed":42,"n":2,"width":832,"height":1216,"style":"pixel","auto":true}' \
-              -o out.json
-            END=$(date +%s)
-            python3 - "$i" "$((END-START))" <<'PY'
-          import json, sys, base64
-          raw = open("out.json").read()
-          try:
-              d = json.loads(raw)
-          except Exception:
-              print("::warning::Cevap JSON değil (geçici hata olabilir):", raw[:300]); sys.exit(0)
-          if "images" not in d:
-              print("HATA:", d); sys.exit(1)
-          for k, im in enumerate(d["images"]):
-              open(f"test_{sys.argv[1]}_{k}.png", "wb").write(base64.b64decode(im))
-          msg = f"Deneme {sys.argv[1]}: {len(d['images'])} görsel, GPU süresi {d['seconds']} sn, toplam {sys.argv[2]} sn"
-          print(msg)
-          open(__import__('os').environ['GITHUB_STEP_SUMMARY'], 'a').write(f"- {msg}\n")
-          PY
-          done
+          pip install --quiet pillow
+          python3 modal/test_motor.py
 
       - name: Deneme görsellerini repoya kaydet (deneme-sonuclari dalı)
         if: steps.chk.outputs.ok == 'true' && always()

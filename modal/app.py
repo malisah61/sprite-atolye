@@ -12,6 +12,9 @@ Uç nokta (POST /generate):
            "native": bool       → (isteğe bağlı) pixel art'ı gerçek piksel boyutuna indir
   cevap:  {"images": ["<base64 png>", ...], "seconds": float}
 
+           "reference": "<base64>", "ref_scale": 0-1 → referans görsele benzeyen (aynı karakter) üretim
+           "tileable": bool     → dikişsiz doku
+POST /edit   {"image", "prompt", "strength", "mask"?, "reference"?} → metinle düzenleme / boyayarak (inpaint)
 POST /rembg  {"image": "<base64>"} → {"image": "<base64 RGBA png>"}
 """
 import modal
@@ -21,6 +24,8 @@ BASE = "stabilityai/stable-diffusion-xl-base-1.0"
 VAE = "madebyollin/sdxl-vae-fp16-fix"
 PIXEL_LORA = "nerijs/pixel-art-xl"
 PIXEL_LORA_FILE = "pixel-art-xl.safetensors"
+IPA_REPO = "h94/IP-Adapter"
+IPA_FILE = "ip-adapter_sdxl_vit-h.safetensors"
 
 
 def download_models():
@@ -33,6 +38,14 @@ def download_models():
     )
     snapshot_download(VAE, allow_patterns=["*.json", "*.safetensors"])
     hf_hub_download(PIXEL_LORA, PIXEL_LORA_FILE)
+    # IP-Adapter (referans görselle tutarlı karakter) + görüntü kodlayıcı
+
+
+def download_ipa():
+    from huggingface_hub import hf_hub_download, snapshot_download
+
+    hf_hub_download(IPA_REPO, IPA_FILE, subfolder="sdxl_models")
+    snapshot_download(IPA_REPO, allow_patterns=["models/image_encoder/*"])
 
 
 def download_rembg():
@@ -213,6 +226,7 @@ image = (
     .run_function(download_models)
     .pip_install("rembg==2.0.59", "onnxruntime==1.19.2", "scipy")
     .run_function(download_rembg)
+    .run_function(download_ipa)
 )
 
 app = modal.App(APP_NAME, image=image)
@@ -239,9 +253,17 @@ class Motor:
             pipe.scheduler.config, use_karras_sigmas=True
         )
         pipe.load_lora_weights(PIXEL_LORA, weight_name=PIXEL_LORA_FILE, adapter_name="pixel")
+        pipe.load_ip_adapter(IPA_REPO, subfolder="sdxl_models", weight_name=IPA_FILE,
+                             image_encoder_folder="models/image_encoder")
         pipe.to("cuda")
         pipe.enable_vae_slicing()
         self.pipe = pipe
+        from diffusers import StableDiffusionXLImg2ImgPipeline, StableDiffusionXLInpaintPipeline
+        from PIL import Image
+
+        self.i2i = StableDiffusionXLImg2ImgPipeline.from_pipe(pipe)
+        self.inp = StableDiffusionXLInpaintPipeline.from_pipe(pipe)
+        self.blank = Image.new("RGB", (224, 224), (128, 128, 128))
         from rembg import new_session
 
         self.rb = new_session("isnet-general-use")
@@ -273,28 +295,41 @@ class Motor:
             return drop_debris(out)
         return final
 
-    def _run(self, prompt, negative, seed, n, width, height, style, transparent=False, auto=False, native=False):
-        import base64
-        import io
-        import time
-
+    def _tile(self, on):
+        """Dikişsiz (seamless) doku için evrişim katmanlarını dairesel dolguya al."""
         import torch
 
-        t0 = time.time()
+        for model in (self.pipe.unet, self.pipe.vae):
+            for m in model.modules():
+                if isinstance(m, torch.nn.Conv2d):
+                    m.padding_mode = "circular" if on else "zeros"
+
+    def _ref(self, b64):
+        import base64
+        import io
+
+        from PIL import Image
+
+        if not b64:
+            return None
+        im = Image.open(io.BytesIO(base64.b64decode(str(b64).split(",")[-1])))
+        if im.mode in ("RGBA", "LA", "P"):
+            im = im.convert("RGBA")
+            bgim = Image.new("RGBA", im.size, (128, 128, 128, 255))
+            bgim.alpha_composite(im)
+            im = bgim
+        return im.convert("RGB")
+
+    def _common(self, style, ref_img, ref_scale):
         self.pipe.set_adapters(["pixel"], adapter_weights=[1.0 if style == "pixel" else 0.0])
-        gens = [torch.Generator("cuda").manual_seed(seed + i) for i in range(n)]
-        out = self.pipe(
-            prompt=prompt,
-            negative_prompt=negative,
-            num_inference_steps=22,
-            guidance_scale=6.0,
-            width=width,
-            height=height,
-            num_images_per_prompt=n,
-            generator=gens,
-        ).images
-        imgs = []
-        grids, plains = [], []
+        self.pipe.set_ip_adapter_scale(float(ref_scale) if ref_img is not None else 0.0)
+        return ref_img if ref_img is not None else self.blank
+
+    def _post(self, out, transparent, auto, style, native):
+        import base64
+        import io
+
+        imgs, grids, plains = [], [], []
         for im in out:
             if transparent or auto:
                 im = self._cut(im)
@@ -305,6 +340,62 @@ class Motor:
             buf = io.BytesIO()
             im.save(buf, format="PNG")
             imgs.append(base64.b64encode(buf.getvalue()).decode())
+        return imgs, grids, plains
+
+    def _edit(self, image, mask, prompt, negative, seed, strength, style, ref_img, ref_scale, auto):
+        import time
+
+        import torch
+        from PIL import Image
+
+        t0 = time.time()
+        w, h = image.size
+        s = 1024 / max(w, h)
+        W, H = max(512, int(w * s) // 64 * 64), max(512, int(h * s) // 64 * 64)
+        image = image.resize((W, H), Image.LANCZOS)
+        ipa = self._common(style, ref_img, ref_scale)
+        g = torch.Generator("cuda").manual_seed(seed)
+        kw = dict(prompt=prompt, negative_prompt=negative, image=image, strength=float(strength),
+                  num_inference_steps=30, guidance_scale=6.0, generator=g, ip_adapter_image=ipa)
+        if mask is not None:
+            mask = mask.convert("L").resize((W, H), Image.NEAREST)
+            out = self.inp(mask_image=mask, width=W, height=H, **kw).images
+        else:
+            out = self.i2i(**kw).images
+        imgs, grids, plains = self._post(out, auto, auto, style, False)
+        return {"images": imgs, "plain": plains, "seconds": round(time.time() - t0, 2)}
+
+    def _run(self, prompt, negative, seed, n, width, height, style, transparent=False, auto=False, native=False,
+             ref_img=None, ref_scale=0.6, tileable=False):
+        import base64
+        import io
+        import time
+
+        import torch
+
+        t0 = time.time()
+        ipa = self._common(style, ref_img, ref_scale)
+        gens = [torch.Generator("cuda").manual_seed(seed + i) for i in range(n)]
+        if tileable:
+            self._tile(True)
+        try:
+            out = self.pipe(
+                prompt=prompt,
+                negative_prompt=negative,
+                num_inference_steps=22,
+                guidance_scale=6.0,
+                width=width,
+                height=height,
+                num_images_per_prompt=n,
+                generator=gens,
+                ip_adapter_image=ipa,
+            ).images
+        finally:
+            if tileable:
+                self._tile(False)
+        if tileable:  # dokular kesilmez, temizlenmez
+            transparent = auto = False
+        imgs, grids, plains = self._post(out, transparent, auto, style, native)
         return {"images": imgs, "grid": grids, "plain": plains, "seconds": round(time.time() - t0, 2)}
 
     @modal.asgi_app()
@@ -325,7 +416,8 @@ class Motor:
 
         @api.get("/")
         def health():
-            return {"ok": True, "motor": "sdxl+pixel-art-xl", "gpu": "T4"}
+            return {"ok": True, "motor": "sdxl+pixel-art-xl+ip-adapter", "gpu": "T4",
+                    "ozellikler": ["generate", "reference", "tileable", "edit", "inpaint", "rembg"]}
 
         @api.post("/generate")
         def generate(body: dict, x_sprite_key: str = Header(default="")):
@@ -345,7 +437,36 @@ class Motor:
             transparent = bool(body.get("transparent", False))
             auto = bool(body.get("auto", False))
             native = bool(body.get("native", False))
-            return self._run(prompt, negative, seed, n, width, height, style, transparent, auto, native)
+            ref_img = self._ref(body.get("reference"))
+            ref_scale = max(0.0, min(1.0, float(body.get("ref_scale", 0.6))))
+            tileable = bool(body.get("tileable", False))
+            return self._run(prompt, negative, seed, n, width, height, style, transparent, auto, native,
+                             ref_img, ref_scale, tileable)
+
+        @api.post("/edit")
+        def edit(body: dict, x_sprite_key: str = Header(default="")):
+            """Var olan görseli metinle düzenle (img2img); mask verilirse sadece boyanan yeri yeniden çiz (inpaint)."""
+            if key and x_sprite_key != key:
+                raise HTTPException(status_code=401, detail="Anahtar yanlış")
+            image = self._ref(body.get("image"))
+            if image is None:
+                raise HTTPException(status_code=400, detail="image boş")
+            mask = None
+            if body.get("mask"):
+                import base64
+                import io
+
+                from PIL import Image
+
+                mask = Image.open(io.BytesIO(base64.b64decode(str(body["mask"]).split(",")[-1])))
+                if mask.mode == "RGBA":  # boyanan (opak) yerler beyaz = yeniden çiz
+                    mask = mask.split()[-1]
+            prompt = str(body.get("prompt", ""))[:1500]
+            negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters, frame, border"))[:500]
+            strength = max(0.15, min(1.0, float(body.get("strength", 0.6 if mask is None else 0.95))))
+            return self._edit(image, mask, prompt, negative, int(body.get("seed", 0)) % (2**31), strength,
+                              str(body.get("style", "other")), self._ref(body.get("reference")),
+                              max(0.0, min(1.0, float(body.get("ref_scale", 0.5)))), bool(body.get("auto", True)))
 
         @api.post("/rembg")
         def rembg(body: dict, x_sprite_key: str = Header(default="")):
