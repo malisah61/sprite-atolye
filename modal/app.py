@@ -233,7 +233,7 @@ image = (
         "fastapi[standard]==0.115.5",
         "pillow==11.0.0",
     )
-    .env({"MOTOR_MODEL": BASE, "MOTOR_APP": APP_NAME})
+    .env({"MOTOR_MODEL": BASE, "MOTOR_APP": APP_NAME, "MOTOR_MEM": os.environ.get("MOTOR_MEM", "0")})
     .run_function(download_models)
     .pip_install("rembg==2.0.59", "onnxruntime==1.19.2", "scipy")
     .run_function(download_rembg)
@@ -245,6 +245,7 @@ app = modal.App(APP_NAME, image=image)
 
 @app.cls(
     gpu="T4",
+    memory=int(os.environ.get("MOTOR_MEM", "0")) or None,  # deneme motorunda büyük model için RAM isteği
     timeout=600,
     scaledown_window=90,  # 90 sn boşta kalınca kapanır → kredi yemez
     max_containers=1,     # aynı anda tek GPU → bütçe güvende
@@ -256,6 +257,7 @@ class Motor:
         import torch
         from diffusers import AutoencoderKL, DPMSolverMultistepScheduler, StableDiffusionXLPipeline
 
+        print(f"[motor] yükleniyor: {BASE}", flush=True)
         vae = AutoencoderKL.from_pretrained(VAE, torch_dtype=torch.float16)
         variant = open("/root/base_variant.txt").read().strip() or None
         pipe = StableDiffusionXLPipeline.from_pretrained(
@@ -264,6 +266,7 @@ class Motor:
         pipe.scheduler = DPMSolverMultistepScheduler.from_config(
             pipe.scheduler.config, use_karras_sigmas=True
         )
+        print(f"[motor] ana model yüklendi (variant={variant})", flush=True)
         pipe.load_lora_weights(PIXEL_LORA, weight_name=PIXEL_LORA_FILE, adapter_name="pixel")
         pipe.load_ip_adapter(IPA_REPO, subfolder="sdxl_models", weight_name=IPA_FILE,
                              image_encoder_folder="models/image_encoder")
@@ -279,6 +282,7 @@ class Motor:
         from rembg import new_session
 
         self.rb = new_session("isnet-general-use")
+        print("[motor] hazır", flush=True)
 
     def _cut(self, im, force=False):
         """Yapay zekâ ile arka plan silme (gölge dahil) → RGBA."""

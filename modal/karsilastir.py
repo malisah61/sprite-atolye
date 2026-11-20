@@ -55,13 +55,16 @@ def b2i(b):
 
 
 for u in (ESKI, YENI):
-    for deneme in range(5):
+    for deneme in range(3):
         try:
-            print(urllib.request.urlopen(u + "/", timeout=900).read().decode(), flush=True)
+            print(urllib.request.urlopen(u + "/", timeout=400).read().decode(), flush=True)
             break
         except Exception as e:  # noqa
             yaz(f"motor uyanıyor ({u}): {e}")
-            time.sleep(15)
+            time.sleep(10)
+    else:
+        yaz(f"❌ motor açılmadı: {u}")
+        sys.exit(2)
 
 sonuc = {}
 for ad, stil, w, h, prompt in TARIFLER:

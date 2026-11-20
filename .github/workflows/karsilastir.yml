@@ -35,6 +35,7 @@ jobs:
         env:
           MOTOR_APP: sprite-atolye-deneme
           MOTOR_MODEL: ${{ inputs.model }}
+          MOTOR_MEM: '24576'
         run: |
           set -o pipefail
           modal deploy modal/app.py 2>&1 | tee deploy.log
@@ -42,7 +43,12 @@ jobs:
           echo "YENI_URL=$URL" >> "$GITHUB_ENV"
           echo "### Deneme motoru: $URL ($MOTOR_MODEL)" >> "$GITHUB_STEP_SUMMARY"
       - name: Yan yana üret
-        run: python3 modal/karsilastir.py
+        run: |
+          (timeout 2400 modal app logs sprite-atolye-deneme > applogs.txt 2>&1 &)
+          python3 modal/karsilastir.py
+      - name: Deneme motoru kayıtları
+        if: always()
+        run: tail -n 120 applogs.txt || true
       - name: Deneme motorunu durdur (kredi yemesin)
         if: always()
         run: modal app stop -y sprite-atolye-deneme || true
