@@ -440,6 +440,43 @@ class Motor:
             p = self.clip(**inp).logits_per_image.float().softmax(-1)[0, 0].item()
         return p
 
+    def _score(self, im, parts, absent, base):
+        """Görsel tarife ne kadar uyuyor (0-1): istenen parçalar doğru mu, olmaması gerekenler yok mu."""
+        puan, say = 0.0, 0
+        im = im.convert("RGB")
+        for part in (parts or [])[:3]:
+            name, want = str(part.get("name", "")), str(part.get("want", ""))
+            if not name or not want:
+                continue
+            mask, oran, box = self._part_mask(im, name)
+            say += 1
+            if mask is None:
+                continue
+            pad = int(0.1 * max(box[2] - box[0], box[3] - box[1]))
+            crop = im.crop((max(0, box[0] - pad), max(0, box[1] - pad), min(im.width, box[2] + pad), min(im.height, box[3] + pad)))
+            puan += self._clip_pref(crop, want, f"{base} {name}" if base else f"ordinary {name}")
+        for name in (absent or [])[:3]:
+            mask, oran, _ = self._part_mask(im, str(name))
+            say += 1
+            puan += 1.0 - min(1.0, oran * 25)  # parça alanı %4 ve üstü → tam ceza
+        return puan / say if say else 1.0
+
+    def _sec(self, prompt, negative, width, height, seed, ipa, parts, absent, base, aday=4):
+        """Baştan doğru çizim: hızlı taslaklar üret, tarife en uygun olanın seed'ini seç."""
+        import torch
+
+        sonuc = []
+        for i in range(0, aday, 2):
+            seeds = [seed + 1000 * j for j in range(i, min(aday, i + 2))]
+            ims = self.pipe(prompt=prompt, negative_prompt=negative, num_inference_steps=12, guidance_scale=6.0,
+                            width=width, height=height, num_images_per_prompt=len(seeds),
+                            generator=[torch.Generator("cuda").manual_seed(x) for x in seeds],
+                            ip_adapter_image=ipa).images
+            for x, im in zip(seeds, ims):
+                sonuc.append((self._score(im, parts, absent, base), x))
+        sonuc.sort(reverse=True)
+        return sonuc[0][1], sonuc[0][0], [round(p, 2) for p, _ in sonuc]
+
     def _fix_parts(self, im, parts, base, style_text, negative, seed, ipa, absent=None, full_prompt=""):
         """Tarifteki parçalar resimde tutmamışsa o bölgeyi bulup yeniden çizer; olmaması gereken parçaları siler. Kayıt döner."""
         import numpy as np
@@ -510,7 +547,17 @@ class Motor:
 
         t0 = time.time()
         ipa = self._common(style, ref_img, ref_scale)
-        gens = [torch.Generator("cuda").manual_seed(seed + i) for i in range(n)]
+        secimler = []
+        if (parts or absent) and not tileable:
+            # her istenen görsel için 4 taslak tara, en doğru kompozisyonun seed'ini kullan
+            seeds = []
+            for k in range(n):
+                sd, puan, hepsi = self._sec(prompt, negative, width, height, seed + k, ipa, parts, absent, base)
+                seeds.append(sd)
+                secimler.append({"parca": "taslak", "durum": f"4 taslaktan en iyisi seçildi", "skor": round(puan, 2), "adaylar": hepsi})
+            gens = [torch.Generator("cuda").manual_seed(x) for x in seeds]
+        else:
+            gens = [torch.Generator("cuda").manual_seed(seed + i) for i in range(n)]
         if tileable:
             self._tile(True)
         try:
@@ -534,10 +581,16 @@ class Motor:
         if (parts or absent) and not tileable:
             yeni = []
             for k, im in enumerate(out):
+                log = [secimler[k]] if k < len(secimler) else []
                 try:
-                    im, log = self._fix_parts(im, parts or [], base, style_text, negative, seed + k, ipa, absent, prompt)
+                    son = self._score(im, parts, absent, base)
+                    if son >= 0.6:
+                        log.append({"parca": "sonuç", "durum": "tarife uygun", "skor": round(son, 2)})
+                    else:  # nadir: seçilen taslak bile tam tutmadıysa parçayı düzelt (yedek yol)
+                        im, l2 = self._fix_parts(im, parts or [], base, style_text, negative, seed + k, ipa, absent, prompt)
+                        log += l2
                 except Exception as e:  # noqa
-                    log = [{"hata": str(e)[:200]}]
+                    log.append({"hata": str(e)[:200]})
                 yeni.append(im); fixes.append(log)
             out = yeni
         imgs, grids, plains = self._post(out, transparent, auto, style, native)
