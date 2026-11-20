@@ -412,7 +412,12 @@ class Motor:
 
         with torch.no_grad():
             inp = self.seg_proc(text=[name], images=[im], return_tensors="pt").to("cuda")
-            logits = self.seg(**inp).logits
+            try:  # CLIPSeg 352px girişle eğitildi; yeni transformers boyut kontrolü için konum kodlaması uyarlanır
+                logits = self.seg(**inp, interpolate_pos_encoding=True).logits
+            except TypeError:
+                inp = self.seg_proc(text=[name], images=[im.resize((224, 224))], return_tensors="pt",
+                                    size={"height": 224, "width": 224}).to("cuda")
+                logits = self.seg(**inp).logits
         prob = torch.sigmoid(logits).squeeze().float().cpu().numpy()
         m = Image.fromarray((prob * 255).astype(np.uint8)).resize(im.size, Image.BILINEAR)
         a = np.array(m) > 100
