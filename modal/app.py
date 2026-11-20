@@ -14,6 +14,7 @@ Uç nokta (POST /generate):
 
            "reference": "<base64>", "ref_scale": 0-1 → referans görsele benzeyen (aynı karakter) üretim
            "tileable": bool     → dikişsiz doku
+           "parts": [{"name":"head","want":"monkey head..."}], "base": "snake" → otomatik parça kontrolü ve düzeltme
 POST /edit   {"image", "prompt", "strength", "mask"?, "reference"?} → metinle düzenleme / boyayarak (inpaint)
 POST /rembg  {"image": "<base64>"} → {"image": "<base64 RGBA png>"}
 """
@@ -41,6 +42,18 @@ def download_models():
     snapshot_download(VAE, allow_patterns=["*.json", "*.safetensors"])
     hf_hub_download(PIXEL_LORA, PIXEL_LORA_FILE)
     # IP-Adapter (referans görselle tutarlı karakter) + görüntü kodlayıcı
+
+
+SEG_MODEL = "CIDAS/clipseg-rd64-refined"
+CLIP_MODEL = "openai/clip-vit-large-patch14"
+
+
+def download_check():
+    """Parça bulucu (CLIPSeg) + benzerlik ölçer (CLIP): otomatik parça kontrolü/düzeltmesi için."""
+    from huggingface_hub import snapshot_download
+
+    snapshot_download(SEG_MODEL, allow_patterns=["*.json", "*.txt", "*.safetensors", "*.bin"])
+    snapshot_download(CLIP_MODEL, allow_patterns=["*.json", "*.txt", "*.safetensors"])
 
 
 def download_ipa():
@@ -229,6 +242,7 @@ image = (
     .pip_install("rembg==2.0.59", "onnxruntime==1.19.2", "scipy")
     .run_function(download_rembg)
     .run_function(download_ipa)
+    .run_function(download_check)
 )
 
 app = modal.App(APP_NAME, image=image)
@@ -267,6 +281,12 @@ class Motor:
         self.i2i = StableDiffusionXLImg2ImgPipeline.from_pipe(pipe)
         self.inp = StableDiffusionXLInpaintPipeline.from_pipe(pipe)
         self.blank = Image.new("RGB", (224, 224), (128, 128, 128))
+        from transformers import CLIPModel, CLIPProcessor, CLIPSegForImageSegmentation, CLIPSegProcessor
+
+        self.seg_proc = CLIPSegProcessor.from_pretrained(SEG_MODEL)
+        self.seg = CLIPSegForImageSegmentation.from_pretrained(SEG_MODEL).to("cuda").eval()
+        self.clip_proc = CLIPProcessor.from_pretrained(CLIP_MODEL)
+        self.clip = CLIPModel.from_pretrained(CLIP_MODEL, torch_dtype=torch.float16, use_safetensors=True).to("cuda").eval()
         from rembg import new_session
 
         self.rb = new_session("isnet-general-use")
@@ -384,8 +404,71 @@ class Motor:
         imgs, grids, plains = self._post(out, auto, auto, style, False, force=True)
         return {"images": imgs, "plain": plains, "seconds": round(time.time() - t0, 2)}
 
+    def _part_mask(self, im, name):
+        """CLIPSeg ile resimdeki parçanın (ör. 'head') maskesi → (PIL L maskesi, alan oranı, kutu)."""
+        import numpy as np
+        import torch
+        from PIL import Image, ImageFilter
+
+        with torch.no_grad():
+            inp = self.seg_proc(text=[name], images=[im], return_tensors="pt").to("cuda")
+            logits = self.seg(**inp).logits
+        prob = torch.sigmoid(logits).squeeze().float().cpu().numpy()
+        m = Image.fromarray((prob * 255).astype(np.uint8)).resize(im.size, Image.BILINEAR)
+        a = np.array(m) > 100
+        if a.mean() < 0.004:
+            return None, 0.0, None
+        ys, xs = np.nonzero(a)
+        box = (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
+        grow = max(8, int(0.03 * max(im.size)))
+        mask = Image.fromarray((a * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(grow // 2 * 2 + 1))
+        return mask, float(a.mean()), box
+
+    def _clip_pref(self, crop, good, bad):
+        """Kırpılan bölge 'good' tarifine mi 'bad' tarifine mi benziyor → good olasılığı (0-1)."""
+        import torch
+
+        with torch.no_grad():
+            inp = self.clip_proc(text=[good, bad], images=crop, return_tensors="pt", padding=True).to("cuda")
+            inp["pixel_values"] = inp["pixel_values"].half()
+            p = self.clip(**inp).logits_per_image.float().softmax(-1)[0, 0].item()
+        return p
+
+    def _fix_parts(self, im, parts, base, style_text, negative, seed, ipa):
+        """Tarifteki parçalar resimde tutmamışsa o bölgeyi bulup yeniden çizer. Kayıt döner."""
+        import torch
+        from PIL import Image
+
+        log = []
+        im = im.convert("RGB")
+        for i, part in enumerate(parts[:3]):
+            name = str(part.get("name", "")).strip()[:40]
+            want = str(part.get("want", "")).strip()[:200]
+            if not name or not want:
+                continue
+            for deneme in range(2):
+                mask, oran, box = self._part_mask(im, name)
+                if mask is None:
+                    log.append({"parca": name, "durum": "bulunamadı"})
+                    break
+                pad = int(0.1 * max(box[2] - box[0], box[3] - box[1]))
+                crop = im.crop((max(0, box[0] - pad), max(0, box[1] - pad), min(im.width, box[2] + pad), min(im.height, box[3] + pad)))
+                bad = f"{base} {name}" if base else f"ordinary {name}"
+                p = self._clip_pref(crop, want, bad)
+                if p >= 0.55:
+                    log.append({"parca": name, "durum": "tuttu" if deneme == 0 else "düzeltildi", "skor": round(p, 2)})
+                    break
+                if deneme == 1:
+                    log.append({"parca": name, "durum": "zayıf kaldı", "skor": round(p, 2)})
+                    break
+                g = torch.Generator("cuda").manual_seed(seed + 101 + i)
+                im = self.inp(prompt=f"{want}, {style_text}", negative_prompt=negative, image=im, mask_image=mask,
+                              width=im.width, height=im.height, strength=0.92, num_inference_steps=28,
+                              guidance_scale=7.0, generator=g, ip_adapter_image=ipa).images[0]
+        return im, log
+
     def _run(self, prompt, negative, seed, n, width, height, style, transparent=False, auto=False, native=False,
-             ref_img=None, ref_scale=0.6, tileable=False):
+             ref_img=None, ref_scale=0.6, tileable=False, parts=None, base="", style_text=""):
         import base64
         import io
         import time
@@ -414,8 +497,18 @@ class Motor:
                 self._tile(False)
         if tileable:  # dokular kesilmez, temizlenmez
             transparent = auto = False
+        fixes = []
+        if parts and not tileable:
+            yeni = []
+            for k, im in enumerate(out):
+                try:
+                    im, log = self._fix_parts(im, parts, base, style_text, negative, seed + k, ipa)
+                except Exception as e:  # noqa
+                    log = [{"hata": str(e)[:200]}]
+                yeni.append(im); fixes.append(log)
+            out = yeni
         imgs, grids, plains = self._post(out, transparent, auto, style, native)
-        return {"images": imgs, "grid": grids, "plain": plains, "seconds": round(time.time() - t0, 2)}
+        return {"images": imgs, "grid": grids, "plain": plains, "fixes": fixes, "seconds": round(time.time() - t0, 2)}
 
     @modal.asgi_app()
     def web(self):
@@ -459,8 +552,11 @@ class Motor:
             ref_img = self._ref(body.get("reference"))
             ref_scale = max(0.0, min(1.0, float(body.get("ref_scale", 0.6))))
             tileable = bool(body.get("tileable", False))
+            parts = body.get("parts") if isinstance(body.get("parts"), list) else None
+            base = str(body.get("base", ""))[:60]
+            style_text = str(body.get("style_text", "high quality 2D game art"))[:200]
             return self._run(prompt, negative, seed, n, width, height, style, transparent, auto, native,
-                             ref_img, ref_scale, tileable)
+                             ref_img, ref_scale, tileable, parts, base, style_text)
 
         @api.post("/edit")
         def edit(body: dict, x_sprite_key: str = Header(default="")):
