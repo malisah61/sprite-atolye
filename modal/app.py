@@ -15,6 +15,7 @@ Uç nokta (POST /generate):
            "reference": "<base64>", "ref_scale": 0-1 → referans görsele benzeyen (aynı karakter) üretim
            "tileable": bool     → dikişsiz doku
            "parts": [{"name":"head","want":"monkey head..."}], "base": "snake" → otomatik parça kontrolü ve düzeltme
+           "lora": "cartoon"|"chibi"|"dark"|"detay", "lora_weight": 0-2 → stile özel LoRA (tetik kelimesi otomatik eklenir)
 POST /edit   {"image", "prompt", "strength", "mask"?, "reference"?} → metinle düzenleme / boyayarak (inpaint)
 POST /rembg  {"image": "<base64>"} → {"image": "<base64 RGBA png>"}
 """
@@ -27,6 +28,15 @@ BASE = "Lykon/dreamshaper-xl-1-0"
 VAE = "madebyollin/sdxl-vae-fp16-fix"
 PIXEL_LORA = "nerijs/pixel-art-xl"
 PIXEL_LORA_FILE = "pixel-art-xl.safetensors"
+# Stile özel LoRA'lar (hepsi SDXL için, lisansları ticari kullanıma izin veriyor; 21 Kasım'da model kartlarından kontrol edildi)
+# ad: (depo, dosya, varsayılan ağırlık, tetik kelimesi, lisans)
+STYLE_LORAS = {
+    "cartoon": ("issaccyj/lora-sdxl-cartoonillustration", "pytorch_lora_weights.safetensors", 0.8, "in szn style", "openrail++"),
+    "cartoon2": ("ntc-ai/SDXL-LoRA-slider.cartoon", "cartoon.safetensors", 1.5, "cartoon", "mit"),
+    "chibi": ("strkyyy/anime-chibi", "anime-chibi.safetensors", 0.85, "ch1b1n1me", "openrail++"),
+    "dark": ("Geroloq/darkfantasy_style_LoRA", "pytorch_lora_weights.safetensors", 0.8, "in DARK FANTASY style", "openrail++"),
+    "detay": ("ntc-ai/SDXL-LoRA-slider.extremely-detailed", "extremely detailed.safetensors", 1.5, "extremely detailed", "mit"),
+}
 IPA_REPO = "h94/IP-Adapter"
 IPA_FILE = "ip-adapter_sdxl_vit-h.safetensors"
 
@@ -41,6 +51,11 @@ def download_models():
     )
     snapshot_download(VAE, allow_patterns=["*.json", "*.safetensors"])
     hf_hub_download(PIXEL_LORA, PIXEL_LORA_FILE)
+    for ad, (repo, dosya, *_r) in STYLE_LORAS.items():
+        try:
+            hf_hub_download(repo, dosya)
+        except Exception as e:  # noqa — bir LoRA inmezse motor yine kurulsun
+            print(f"[lora] {ad} indirilemedi: {e}", flush=True)
     # IP-Adapter (referans görselle tutarlı karakter) + görüntü kodlayıcı
 
 
@@ -270,6 +285,15 @@ class Motor:
             final_sigmas_type="zero", timestep_spacing="leading", steps_offset=1  # DreamShaper DEIS ayarıyla gelir
         )
         pipe.load_lora_weights(PIXEL_LORA, weight_name=PIXEL_LORA_FILE, adapter_name="pixel")
+        self.loras = {}
+        for ad, (repo, dosya, w, tetik, _lis) in STYLE_LORAS.items():
+            try:
+                pipe.load_lora_weights(repo, weight_name=dosya, adapter_name=ad)
+                self.loras[ad] = (w, tetik)
+            except Exception as e:  # noqa
+                print(f"[lora] {ad} yüklenemedi: {e}", flush=True)
+        print(f"[lora] yüklü stil LoRA'ları: {list(self.loras)}", flush=True)
+        self._lora = (None, None)
         pipe.load_ip_adapter(IPA_REPO, subfolder="sdxl_models", weight_name=IPA_FILE,
                              image_encoder_folder="models/image_encoder")
         pipe.to("cuda")
@@ -358,8 +382,30 @@ class Motor:
             im = bgim
         return im.convert("RGB")
 
+    def _lora_prompt(self, prompt):
+        """Stil LoRA'sı seçiliyse tetik kelimesini tarife ekler."""
+        ad, _w = getattr(self, "_lora", (None, None))
+        if ad in getattr(self, "loras", {}):
+            tetik = self.loras[ad][1]
+            if tetik.lower() not in prompt.lower():
+                return f"{prompt}, {tetik}"
+        return prompt
+
+    def _lora_sec(self, body):
+        """İstekten stil LoRA'sı: {"lora": "cartoon"|"chibi"|"dark"|"detay", "lora_weight": 0-2}"""
+        ad = body.get("lora")
+        if not ad or ad not in getattr(self, "loras", {}):
+            return (None, None)
+        w = body.get("lora_weight")
+        return (ad, None if w is None else max(0.0, min(2.0, float(w))))
+
     def _common(self, style, ref_img, ref_scale):
-        self.pipe.set_adapters(["pixel"], adapter_weights=[1.0 if style == "pixel" else 0.0])
+        ad, w = getattr(self, "_lora", (None, None))
+        adlar, agirlik = ["pixel"], [1.0 if style == "pixel" else 0.0]
+        if ad in getattr(self, "loras", {}):  # seçilen stil LoRA'sı açılır, diğerleri kapalı kalır
+            adlar.append(ad)
+            agirlik.append(float(w) if w is not None else self.loras[ad][0])
+        self.pipe.set_adapters(adlar, adapter_weights=agirlik)
         self.pipe.set_ip_adapter_scale(float(ref_scale) if ref_img is not None else 0.0)
         return ref_img if ref_img is not None else self.blank
 
@@ -392,6 +438,7 @@ class Motor:
         W, H = max(512, int(w * s) // 64 * 64), max(512, int(h * s) // 64 * 64)
         image = image.resize((W, H), Image.LANCZOS)
         ipa = self._common(style, ref_img, ref_scale)
+        prompt = self._lora_prompt(prompt)
         g = torch.Generator("cuda").manual_seed(seed)
         kw = dict(prompt=prompt, negative_prompt=negative, image=image, strength=float(strength),
                   num_inference_steps=30, guidance_scale=6.0, generator=g, ip_adapter_image=ipa)
@@ -552,6 +599,7 @@ class Motor:
 
         t0 = time.time()
         ipa = self._common(style, ref_img, ref_scale)
+        prompt = self._lora_prompt(prompt)
         secimler = []
         if (parts or absent) and not tileable:
             # her istenen görsel için 4 taslak tara, en doğru kompozisyonun seed'ini kullan
@@ -620,6 +668,7 @@ class Motor:
         @api.get("/")
         def health():
             return {"ok": True, "motor": "sdxl+pixel-art-xl+ip-adapter", "model": BASE, "gpu": "T4",
+                    "loralar": list(getattr(self, "loras", {})),
                     "ozellikler": ["generate", "reference", "tileable", "edit", "inpaint", "rembg"]}
 
         @api.post("/generate")
@@ -647,6 +696,7 @@ class Motor:
             base = str(body.get("base", ""))[:60]
             style_text = str(body.get("style_text", "high quality 2D game art"))[:200]
             absent = body.get("absent") if isinstance(body.get("absent"), list) else None
+            self._lora = self._lora_sec(body)
             return self._run(prompt, negative, seed, n, width, height, style, transparent, auto, native,
                              ref_img, ref_scale, tileable, parts, base, style_text, absent)
 
@@ -671,6 +721,7 @@ class Motor:
             prompt = str(body.get("prompt", ""))[:1500]
             negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters, frame, border"))[:500]
             strength = max(0.15, min(1.0, float(body.get("strength", 0.6 if mask is None else 0.95))))
+            self._lora = self._lora_sec(body)
             return self._edit(image, mask, prompt, negative, int(body.get("seed", 0)) % (2**31), strength,
                               str(body.get("style", "other")), self._ref(body.get("reference")),
                               max(0.0, min(1.0, float(body.get("ref_scale", 0.5)))), bool(body.get("auto", True)))

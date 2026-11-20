@@ -59,6 +59,8 @@ s2 = s2.replace("pipe.scheduler.config, use_karras_sigmas=True\n",
 # (modal run konteyner kayıtlarını Actions çıktısına akıtır ve iş bitince uygulamayı kendisi kapatır.)
 s2 = s2.replace("    @modal.asgi_app()\n", '''    @modal.method()
     def uret(self, b):
+        if hasattr(self, "_lora_sec"):
+            self._lora = self._lora_sec(b)
         return self._run(b["prompt"], b["negative"], int(b["seed"]), int(b.get("n", 1)), int(b["width"]), int(b["height"]),
                          b.get("style", "pixel"), False, bool(b.get("auto", False)), False,
                          self._ref(b.get("reference")), float(b.get("ref_scale", 0.6)), False)
@@ -73,8 +75,9 @@ def karsilastir_yerel():
     import sys as _sys
 
     _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
-    import karsilastir
+    import importlib
 
+    karsilastir = importlib.import_module(_os.environ.get("KARS_MODUL", "karsilastir"))
     m = Motor()
     karsilastir.calistir(lambda body: m.uret.remote(body))
 '''

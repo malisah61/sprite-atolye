@@ -10,6 +10,9 @@ on:
         default: 'Lykon/dreamshaper-xl-1-0'
       seed:
         default: '42'
+      modul:
+        description: 'Karşılaştırma betiği: karsilastir (model) | lora_karsilastir (stil LoRA)'
+        default: 'karsilastir'
       sadece_liste:
         description: 'Sadece modelin dosya listesini yazdır (motor kurma, kredi harcamaz)'
         type: boolean
@@ -29,6 +32,7 @@ jobs:
       ESKI_URL: https://malisah61--sprite-atolye-motor-web.us-east.modal.run
       YENI_MODEL: ${{ inputs.model }}
       SEED: ${{ inputs.seed }}
+      KARS_MODUL: ${{ inputs.modul || 'karsilastir' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -52,6 +56,6 @@ jobs:
           for i in 1 2 3; do
             git fetch origin deneme-sonuclari && git checkout -f -B deneme-sonuclari origin/deneme-sonuclari || git checkout --orphan deneme-sonuclari
             D="karsilastirma/$(date -u +%Y%m%d-%H%M)"; mkdir -p "$D" && cp /tmp/out/*.png "$D/"
-            git add karsilastirma && git commit -qm "Karşılaştırma: ${{ inputs.model }}" && git push -q origin deneme-sonuclari && break
+            git add karsilastirma && git commit -qm "Karşılaştırma: ${{ inputs.model }} (${{ inputs.modul }})" && git push -q origin deneme-sonuclari && break
             sleep 5
           done
