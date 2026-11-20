@@ -39,7 +39,7 @@ jobs:
         run: python3 modal/deneme_hazirla.py "${{ inputs.model }}"
       - name: Deneme motoruyla yan yana üret (modal run — kayıtlar burada görünür, bitince kendi kapanır)
         if: ${{ !inputs.sadece_liste }}
-        run: timeout 2700 modal run modal/deneme_app.py::karsilastir_yerel
+        run: timeout 1800 modal run modal/deneme_app.py::karsilastir_yerel
       - name: Deneme motorunu durdur (kredi yemesin)
         if: ${{ always() && !inputs.sadece_liste }}
         run: modal app stop -y sprite-atolye-deneme || true

@@ -51,6 +51,10 @@ s2 = s2.replace('torch_dtype=torch.float16, variant="fp16", use_safetensors=True
                 f'torch_dtype=torch.float16, variant={variant}, use_safetensors={"False" if desen == "*.bin" else "True"}')
 s2 = s2.replace("        self.rb = new_session(\"isnet-general-use\")\n",
                 "        self.rb = new_session(\"isnet-general-use\")\n        print('[deneme motor] hazır', flush=True)\n", 1)
+# İnce ayarlı modellerin bir kısmı başka zamanlayıcı (ör. DEIS) ayarıyla gelir: canlı motorla aynı DPM++ 2M Karras'ı zorla
+s2 = s2.replace("pipe.scheduler.config, use_karras_sigmas=True\n",
+                "pipe.scheduler.config, use_karras_sigmas=True, algorithm_type=\"dpmsolver++\", solver_type=\"midpoint\",\n"
+                "            final_sigmas_type=\"zero\", timestep_spacing=\"leading\", steps_offset=1\n", 1)
 # `modal run` ile çalıştırmak için: doğrudan çağrılabilir üretim metodu + yerel giriş noktası.
 # (modal run konteyner kayıtlarını Actions çıktısına akıtır ve iş bitince uygulamayı kendisi kapatır.)
 s2 = s2.replace("    @modal.asgi_app()\n", '''    @modal.method()
