@@ -100,6 +100,14 @@ def karisik():
     yaz(f"Otomatik parça kontrolü: {d.get('fixes')} · GPU {d['seconds']} sn")
 
 
+def lora_cizgi():
+    d, s = post("/generate", {"prompt": "young woman adventurer with long red hair, green tunic and brown boots, solo, one single character alone, full body 2D game character, centered, 2D cartoon game art, clean bold outlines, flat colors, front view, isolated on a plain flat solid medium gray background",
+                              "seed": 42, "n": 1, "width": 832, "height": 1216, "style": "other", "auto": True, "lora": "cartoon"})
+    kaydet("lora_cizgi_film", d["images"][0])
+    yaz(f"Stil LoRA (çizgi film) + otomatik temizlik: GPU {d['seconds']} sn")
+
+
 dene("doku", doku)
+dene("stil LoRA", lora_cizgi)
 dene("karışık yaratık", karisik)
 sys.exit(1 if hatalar else 0)

@@ -175,6 +175,13 @@ const STIL = {
   chibi: 'cute chibi style 2D game art, big head small body, clean outlines',
   dark: 'dark fantasy 2D game art, moody desaturated colors, strong outlines',
 };
+// Modal motorunda stile özel LoRA (motor bilmiyorsa yok sayar). pixel kendi LoRA'sını zaten kullanır.
+// karanlık (arka planı koyulaştırıyor) ve HD (fark yok) için henüz açılmadı — 21 Kasım karşılaştırması
+const LORA_STIL = { cartoon: 'cartoon', chibi: 'chibi' };
+function loraFor(stil) {
+  const k = document.getElementById('loraAc');
+  return (!k || k.checked) ? LORA_STIL[stil] : undefined;
+}
 const BAKIS = {
   front: 'front view facing the camera',
   side: 'side view profile facing right',
@@ -364,7 +371,7 @@ const ENGINES = {
           headers: { 'Content-Type': 'application/json', 'X-Sprite-Key': key },
           body: JSON.stringify({ prompt, seed, n: 1, width: w, height: h, auto: seffaf, style: stil === 'pixel' ? 'pixel' : 'other', negative: negatif || undefined,
             reference: ref || undefined, ref_scale: refScale, tileable: tile,
-            parts: parts || undefined, base, absent: absent || undefined, style_text: styleText }),
+            parts: parts || undefined, base, absent: absent || undefined, style_text: styleText, lora: loraFor(stil) }),
         });
         if (r.status === 401) throw new Error('Motor anahtarı yanlış');
         if (!r.ok) throw new Error('Modal hatası ' + r.status);
@@ -594,6 +601,10 @@ $('#btnStilKaydet').onclick = () => {
 stilListesiCiz();
 $('#recete').value = localStorage.getItem('sa-recete') || '';
 $('#seffaf').checked = localStorage.getItem('sa-seffaf') !== '0';
+try {
+  $('#loraAc').checked = localStorage.getItem('sa-lora') !== '0';
+  $('#loraAc').addEventListener('change', () => { try { localStorage.setItem('sa-lora', $('#loraAc').checked ? '1' : '0'); } catch (e) { /* yok */ } });
+} catch (e) { /* kutu yoksa */ }
 
 /* ---------------- Atölye ---------------- */
 const WS = { canvas: null, name: 'sprite', history: [], en: '' };
@@ -799,7 +810,7 @@ $('#btnArka').onclick = () => {
 async function aiEdit(c, prompt, strength, maskCanvas) {
   const { url, key } = modalCfg();
   if (!url) throw new Error('Modal motor adresi yok');
-  const body = { image: c.toDataURL('image/png').split(',')[1], prompt, strength, style: $('#stil').value === 'pixel' ? 'pixel' : 'other', seed: Math.floor(Math.random() * 1e9), auto: true };
+  const body = { image: c.toDataURL('image/png').split(',')[1], prompt, strength, style: $('#stil').value === 'pixel' ? 'pixel' : 'other', lora: loraFor($('#stil').value), seed: Math.floor(Math.random() * 1e9), auto: true };
   if (maskCanvas) body.mask = maskCanvas.toDataURL('image/png').split(',')[1];
   if (REF.b64) { body.reference = REF.b64; body.ref_scale = Math.min(0.6, REF.scale); }
   const r = await fetch(url.replace(/\/+$/, '') + '/edit', {

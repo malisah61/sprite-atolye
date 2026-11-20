@@ -18,13 +18,11 @@ TEK = "solo, one single character alone, full body 2D game character, centered, 
 # (ad, tarif, [(etiket, lora, ağırlık), ...])  — stil metinleri sitedeki STIL tablosuyla aynı
 TESTLER = [
     ("cizgi_film", f"young woman adventurer with long red hair, green tunic and brown boots, {TEK}, 2D cartoon game art, clean bold outlines, flat colors, {FRONT}, {BG}",
-     [("LoRA yok", None, None), ("cartoon 0.8", "cartoon", 0.8), ("cartoon2 1.5", "cartoon2", 1.5)]),
+     [("LoRA yok", None, None), ("cartoon 0.8", "cartoon", 0.8)]),
     ("chibi", f"young knight boy with a sword and round shield, {TEK}, cute chibi style 2D game art, big head small body, clean outlines, {FRONT}, {BG}",
-     [("LoRA yok", None, None), ("chibi 0.85", "chibi", 0.85)]),
+     [("LoRA yok", None, None), ("chibi 0.75", "chibi", 0.75)]),
     ("karanlik", f"undead skeleton knight with a cursed glowing sword, {TEK}, dark fantasy 2D game art, moody desaturated colors, strong outlines, {FRONT}, {BG}",
-     [("LoRA yok", None, None), ("dark 0.8", "dark", 0.8)]),
-    ("hd", f"lion-headed warrior man in golden armor holding a spear, {TEK}, high quality 2D game art, hand painted, detailed shading, {FRONT}, {BG}",
-     [("LoRA yok", None, None), ("detay 1.5", "detay", 1.5)]),
+     [("LoRA yok", None, None), ("dark 0.5", "dark", 0.5), ("dark 0.8", "dark", 0.8)]),
 ]
 
 

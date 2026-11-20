@@ -15,7 +15,7 @@ Uç nokta (POST /generate):
            "reference": "<base64>", "ref_scale": 0-1 → referans görsele benzeyen (aynı karakter) üretim
            "tileable": bool     → dikişsiz doku
            "parts": [{"name":"head","want":"monkey head..."}], "base": "snake" → otomatik parça kontrolü ve düzeltme
-           "lora": "cartoon"|"chibi"|"dark"|"detay", "lora_weight": 0-2 → stile özel LoRA (tetik kelimesi otomatik eklenir)
+           "lora": "cartoon"|"chibi"|"dark", "lora_weight": 0-2 → stile özel LoRA (tetik kelimesi otomatik eklenir)
 POST /edit   {"image", "prompt", "strength", "mask"?, "reference"?} → metinle düzenleme / boyayarak (inpaint)
 POST /rembg  {"image": "<base64>"} → {"image": "<base64 RGBA png>"}
 """
@@ -31,12 +31,15 @@ PIXEL_LORA_FILE = "pixel-art-xl.safetensors"
 # Stile özel LoRA'lar (hepsi SDXL için, lisansları ticari kullanıma izin veriyor; 21 Kasım'da model kartlarından kontrol edildi)
 # ad: (depo, dosya, varsayılan ağırlık, tetik kelimesi, lisans)
 STYLE_LORAS = {
+    # 21 Kasım karşılaştırması: çizgi filmde karakter sayfası sorununu çözdü, tek temiz figür
     "cartoon": ("issaccyj/lora-sdxl-cartoonillustration", "pytorch_lora_weights.safetensors", 0.8, "in szn style", "openrail++"),
-    "cartoon2": ("ntc-ai/SDXL-LoRA-slider.cartoon", "cartoon.safetensors", 1.5, "cartoon", "mit"),
-    "chibi": ("strkyyy/anime-chibi", "anime-chibi.safetensors", 0.85, "ch1b1n1me", "openrail++"),
-    "dark": ("Geroloq/darkfantasy_style_LoRA", "pytorch_lora_weights.safetensors", 0.8, "in DARK FANTASY style", "openrail++"),
-    "detay": ("ntc-ai/SDXL-LoRA-slider.extremely-detailed", "extremely detailed.safetensors", 1.5, "extremely detailed", "mit"),
+    # gerçek chibi oranı (büyük kafa); model kartı 0.75-0.9 öneriyor
+    "chibi": ("strkyyy/anime-chibi", "anime-chibi.safetensors", 0.75, "ch1b1n1me", "openrail++"),
+    # atmosfer güzel ama 0.8'de arka planı koyu/dokulu yapıyor → sitede henüz kapalı, sadece API'de (daha düşük ağırlık)
+    "dark": ("Geroloq/darkfantasy_style_LoRA", "pytorch_lora_weights.safetensors", 0.5, "in DARK FANTASY style", "openrail++"),
 }
+# Denenip elenenler (21 Kasım): ntc-ai/SDXL-LoRA-slider.cartoon (mit; karakter sayfası sorunu sürdü),
+# ntc-ai/SDXL-LoRA-slider.extremely-detailed (mit; HD'de fark yok denecek kadar az)
 IPA_REPO = "h94/IP-Adapter"
 IPA_FILE = "ip-adapter_sdxl_vit-h.safetensors"
 
@@ -392,7 +395,7 @@ class Motor:
         return prompt
 
     def _lora_sec(self, body):
-        """İstekten stil LoRA'sı: {"lora": "cartoon"|"chibi"|"dark"|"detay", "lora_weight": 0-2}"""
+        """İstekten stil LoRA'sı: {"lora": "cartoon"|"chibi"|"dark", "lora_weight": 0-2}"""
         ad = body.get("lora")
         if not ad or ad not in getattr(self, "loras", {}):
             return (None, None)
