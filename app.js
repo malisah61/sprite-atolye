@@ -378,10 +378,10 @@ const ENGINES = {
     },
   },
 };
-const PARCA_TR = { head: 'kafa', face: 'yüz', wings: 'kanat', wing: 'kanat', tail: 'kuyruk', arms: 'kollar', arm: 'kol', legs: 'bacaklar', body: 'gövde', horns: 'boynuz', hands: 'eller' };
+const PARCA_TR = { 'bütün': 'görsel', head: 'kafa', face: 'yüz', wings: 'kanat', wing: 'kanat', tail: 'kuyruk', arms: 'kollar', arm: 'kol', legs: 'bacaklar', body: 'gövde', horns: 'boynuz', hands: 'eller' };
 function duzeltmeOzeti(f) {
   if (!f || !f.length) return '';
-  return ' · oto-kontrol: ' + f.map(x => x.hata ? 'hata' : `${PARCA_TR[x.parca] || x.parca} ${({ 'tuttu': '✓', 'düzeltildi': '✓ düzeltildi', 'bulunamadı': '?', 'yok ✓': 'yok ✓', 'silindi': 'silindi ✓', 'silinemedi': 'silinemedi ✗' })[x.durum] || '✗ zayıf'}`).join(', ');
+  return ' · oto-kontrol: ' + f.map(x => x.hata ? 'hata' : `${PARCA_TR[x.parca] || x.parca} ${({ 'tuttu': '✓', 'düzeltildi': '✓ düzeltildi', 'bulunamadı': '?', 'yok ✓': 'yok ✓', 'silindi': 'silindi ✓', 'silinemedi': 'silinemedi ✗', 'cilalandı': 'cilalandı ✓' })[x.durum] || '✗ zayıf'}`).join(', ');
 }
 const DEFAULT_MODAL_URL = 'https://malisah61--sprite-atolye-motor-web.us-east.modal.run';
 function modalCfg() {

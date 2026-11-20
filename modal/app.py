@@ -427,6 +427,7 @@ class Motor:
         box = (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
         grow = max(8, int(0.03 * max(im.size)))
         mask = Image.fromarray((a * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(grow // 2 * 2 + 1))
+        mask = mask.filter(ImageFilter.GaussianBlur(grow / 2))  # yumuşak kenar: yeni çizim çevreye kademeli karışır
         return mask, float(a.mean()), box
 
     def _clip_pref(self, crop, good, bad):
@@ -439,7 +440,7 @@ class Motor:
             p = self.clip(**inp).logits_per_image.float().softmax(-1)[0, 0].item()
         return p
 
-    def _fix_parts(self, im, parts, base, style_text, negative, seed, ipa, absent=None):
+    def _fix_parts(self, im, parts, base, style_text, negative, seed, ipa, absent=None, full_prompt=""):
         """Tarifteki parçalar resimde tutmamışsa o bölgeyi bulup yeniden çizer; olmaması gereken parçaları siler. Kayıt döner."""
         import numpy as np
         import torch
@@ -447,6 +448,7 @@ class Motor:
 
         log = []
         im = im.convert("RGB")
+        degisti = False
         # 1) olmaması gereken parçalar (ör. yılanda bacak): bulunursa o bölgeyi gövdenin devamı olarak yeniden çiz
         for j, name in enumerate((absent or [])[:3]):
             name = str(name).strip()[:30]
@@ -462,6 +464,7 @@ class Motor:
                           negative_prompt=f"{name}, limbs, {negative}", image=im, mask_image=mask,
                           width=im.width, height=im.height, strength=0.95, num_inference_steps=28,
                           guidance_scale=7.0, generator=g, ip_adapter_image=ipa).images[0]
+            degisti = True
             m2, oran2, _ = self._part_mask(im, name)
             log.append({"parca": name, "durum": "silindi" if (m2 is None or oran2 < oran * 0.5) else "silinemedi"})
         for i, part in enumerate(parts[:3]):
@@ -485,9 +488,16 @@ class Motor:
                     log.append({"parca": name, "durum": "zayıf kaldı", "skor": round(p, 2)})
                     break
                 g = torch.Generator("cuda").manual_seed(seed + 101 + i)
+                degisti = True
                 im = self.inp(prompt=f"{want}, {style_text}", negative_prompt=negative, image=im, mask_image=mask,
                               width=im.width, height=im.height, strength=0.92, num_inference_steps=28,
                               guidance_scale=7.0, generator=g, ip_adapter_image=ipa).images[0]
+        # son kat cila: yamaların dokusunu/ışığını bütünle eşitle (hafif img2img)
+        if degisti and full_prompt:
+            g = torch.Generator("cuda").manual_seed(seed + 977)
+            im = self.i2i(prompt=full_prompt, negative_prompt=negative, image=im, strength=0.3,
+                          num_inference_steps=30, guidance_scale=6.0, generator=g, ip_adapter_image=ipa).images[0]
+            log.append({"parca": "bütün", "durum": "cilalandı"})
         return im, log
 
     def _run(self, prompt, negative, seed, n, width, height, style, transparent=False, auto=False, native=False,
@@ -525,7 +535,7 @@ class Motor:
             yeni = []
             for k, im in enumerate(out):
                 try:
-                    im, log = self._fix_parts(im, parts or [], base, style_text, negative, seed + k, ipa, absent)
+                    im, log = self._fix_parts(im, parts or [], base, style_text, negative, seed + k, ipa, absent, prompt)
                 except Exception as e:  # noqa
                     log = [{"hata": str(e)[:200]}]
                 yeni.append(im); fixes.append(log)
