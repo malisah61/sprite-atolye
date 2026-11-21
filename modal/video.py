@@ -54,8 +54,8 @@ KAMERA = {
 }
 
 
-# max_containers=3 → en fazla 3 sahne aynı anda (3 GPU). Toplam GPU süresi (maliyet) aynı, bekleme 1/3.
-@app.cls(gpu="L4", memory=32768, timeout=3600, scaledown_window=60, max_containers=3)
+# max_containers=10 → en fazla 10 sahne aynı anda (10 GPU; sahne sayısı kadar açılır). Toplam GPU süresi (maliyet) aynı, bekleme 1/3.
+@app.cls(gpu="L4", memory=32768, timeout=3600, scaledown_window=60, max_containers=10)
 class Video:
     @modal.enter()
     def yukle(self):
