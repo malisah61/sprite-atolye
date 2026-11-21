@@ -1,0 +1,74 @@
+name: Video dene
+
+# Hareketli mini çizgi film denemesi: ilk kare kendi motorumuzla (çizgi film LoRA + referans karakter),
+# sonra Wan 2.2 TI2V-5B (Apache-2.0) ile sahne sahne hareketli video; klipler birbirine bağlanır.
+# Sonuç: deneme-sonuclari dalında video/<tarih>/ altına.
+on:
+  workflow_dispatch:
+    inputs:
+      ilk_tarif:
+        description: 'İlk kare (sahne) tarifi'
+        default: 'young woman adventurer with long red hair, green tunic and brown boots, walking on a sunny forest path, full body, side view, 2D cartoon animation still, colorful cartoon background with trees, clean bold outlines, flat colors'
+      sahneler:
+        description: 'Sahneler (JSON listesi: [{"prompt": "..."}])'
+        default: '[{"prompt": "2D cartoon animation, the red-haired young woman walks forward along the forest path with a smooth walking cycle, hair and tunic swaying, camera tracking alongside her"}, {"prompt": "2D cartoon animation, the red-haired young woman stops walking and looks around curiously, turning her head left and right, leaves gently falling"}, {"prompt": "2D cartoon animation, the red-haired young woman draws a sword and raises it in a brave heroic pose, determined face, wind blowing her hair"}]'
+      seed:
+        default: '42'
+
+permissions:
+  contents: write
+
+jobs:
+  video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      SPRITE_KEY: ${{ secrets.SPRITE_KEY }}
+      MOTOR_URL: https://malisah61--sprite-atolye-motor-web.us-east.modal.run
+      SEED: ${{ inputs.seed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: |
+          pip install --quiet modal
+          sudo apt-get install -y -qq ffmpeg >/dev/null || true
+      - name: Referans karakteri al (önceki çizgi film çıktısı)
+        run: |
+          git fetch -q --depth 1 origin deneme-sonuclari
+          F=$(git ls-tree -r --name-only FETCH_HEAD | grep 'kars_lora_cizgi_film_cartoon.png' | tail -1)
+          [ -n "$F" ] && git show "FETCH_HEAD:$F" > referans.png && echo "referans: $F" || true
+      - name: İlk kare (canlı motor, çizgi film LoRA + referans)
+        run: python3 modal/video_ilk_kare.py "${{ inputs.ilk_tarif }}" referans.png
+      - name: Sahneleri hareketli video olarak üret (Wan 2.2, L4)
+        run: |
+          cat > sahneler.json <<'JSON'
+          ${{ inputs.sahneler }}
+          JSON
+          timeout 5400 modal run modal/video.py --ilk ilk_kare.png --sahneler sahneler.json --seed ${{ inputs.seed }}
+      - name: Video motorunu durdur (kredi yemesin)
+        if: always()
+        run: modal app stop -y sprite-atolye-video || true
+      - name: Sonuçları kaydet (deneme-sonuclari dalı)
+        if: always()
+        run: |
+          ls ilk_kare.png video_*.mp4 >/dev/null 2>&1 || exit 0
+          mkdir -p /tmp/out && cp ilk_kare.png video_* /tmp/out/ 2>/dev/null || true
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          for i in 1 2 3; do
+            git fetch origin deneme-sonuclari && git checkout -f -B deneme-sonuclari origin/deneme-sonuclari
+            D="video/$(date -u +%Y%m%d-%H%M)"; mkdir -p "$D" && cp /tmp/out/* "$D/"
+            git add video && git commit -qm "Video denemesi $D" && git push -q origin deneme-sonuclari && break
+            sleep 5
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video
+          path: |
+            ilk_kare.png
+            video_*
+          if-no-files-found: ignore
