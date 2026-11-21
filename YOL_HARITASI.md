@@ -6,7 +6,7 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - ✅ a) İnce ayarlı ana model → **Lykon/dreamshaper-xl-1-0** (openrail++, ticari kullanım serbest). Karşılaştırma: `karsilastir.yml` (deneme motoru `modal run` ile, canlıya dokunmadan). 20 Kasım sonucu: pixel zombi ve HD aslanda belirgin daha detaylı, kılıç benzer, çizgi film kadında iki model de karakter sayfası üretti (negatife "reference sheet, model sheet, multiple poses" eklendi). pixel-art-xl LoRA ve IP-Adapter yeni modelle çalışıyor. Açılmama sebebi: DreamShaper'ın DEIS zamanlayıcı ayarı → DPM++ 2M Karras zorlandı. Eskiye dönüş: app.py'de BASE satırı.
 - ✅ b) Stile özel LoRA'lar — 21 Kasım: motorda `"lora"` alanı (tetik kelimesi otomatik), sitede "Stil güçlendirici" kutusu (varsayılan açık).
   Karşılaştırma (`karsilastir.yml`, modul=lora_karsilastir, seed 42) sonucu:
-  - çizgi film → `issaccyj/lora-sdxl-cartoonillustration` 0.8 ✅ (karakter sayfası sorunu çözüldü, tek temiz figür) — sitede AÇIK
+  - çizgi film → `issaccyj/lora-sdxl-cartoonillustration` 0.8 ✅ (stil daha temiz; seed 42 karşılaştırmasında tek figür verdi) — sitede AÇIK. ⚠️ Ama canlı testte (farklı tarif metni) yine 3 görünüşlü karakter sayfası çıktı → LoRA bu sorunu tek başına çözmüyor.
   - chibi → `strkyyy/anime-chibi` 0.75 ✅ (gerçek büyük kafa oranı) — sitede AÇIK
   - karanlık → `Geroloq/darkfantasy_style_LoRA` ⚠️ 0.8'de arka planı koyu/dokulu yapıyor; motorda 0.5 varsayılan, sitede KAPALI (ileride 0.5 + temizlik denenecek)
   - HD → `ntc-ai/...extremely-detailed` ❌ fark yok denecek kadar az; `ntc-ai/...cartoon` ❌ karakter sayfası sürdü → elendi
@@ -17,6 +17,7 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
   - karanlık fantastik: `Geroloq/darkfantasy_style_LoRA` (openrail++)
   - "Muapi/..." depoları Civitai'den yeniden yüklenmiş; lisans etiketi asıl yazarın şartlarını yansıtmayabilir → kullanma. Oyun/marka adı geçenler (diablo, nendoroid) → kullanma.
   - Sonraki adım: deneme motoruna (karsilastir.yml benzeri) LoRA'ları ekleyip stil başına örnek üret, bak, ağırlık seç.
+- Açık sorun (21 Kasım): çizgi film kadın tarifinde ara ara karakter sayfası (aynı kişi 3 açıdan). Öneri: temizlikten sonra birden fazla büyük figür varsa otomatik yeniden üret / en büyük figürü al. Motorsuz (site) de yapılabilir.
 - Bilinen eski sorun: test_motor'daki boyayarak düzenleme testinde (üst %25 maske) kafa siliniyor — eski modelde de vardı; maske/temizlik ayarına bakılacak.
 - ⬜ c) İki aşamalı üretim (hi-res fix) + sitede "Ekstra kalite"
 - ⬜ d) Yüz düzeltme
