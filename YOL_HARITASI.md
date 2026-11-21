@@ -29,6 +29,7 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
   - Süre: klip başına ~6,5 dk GPU (30 adım) ≈ 0,09 $/klip; 15 sn video ≈ 0,26 $ GPU (+ yükleme/kurulum ≈ 0,1 $).
   - Sonuç: 1. sahne (yürüme) çok iyi — gerçek akıcı hareket, stil korunuyor. Zincirleme sahnelerde kalite düşüyor: 2. sahnede renkler aşırı doygun, arka plan bulanık; 3. sahnede yüz bozuluyor, kılıç efektleri tuhaf.
   - Düzeltme fikirleri (sıradaki): (1) her sahnenin ilk karesini son kareden değil, kendi motorumuzla taze çiz (referans = karakter, IP-Adapter) ya da son kareye renk eşitleme + hafif SDXL img2img "tazeleme"; (2) adım 30→40; (3) kılıç gibi nesneleri ilk karede zaten çiz (model yoktan nesne çıkarırken bozuluyor).
+- 21 Kasım 2. deneme (sabit kamera, her sahne kendi temiz ilk karesinden, 40 adım, paralel GPU): **belirgin daha iyi** — kamera sabit, renkler doğal, zincir bozulması yok. Klip ~8,3 dk GPU ≈ 0,11 $; 15 sn ≈ 0,33 $ (+ yükleme). Kalan kusurlar: 3. sahnede saç rüzgârda aşırı uçuşuyor; sahneler arası kıyafet ufak farklı (1. sahnede şort). Paralellik: 3 istenen GPU'nun 2'si aynı anda açıldı, 3. ~6 dk sonra (Modal L4 sırası/plan sınırı) → bekleme 19,5 dk. `max_containers=10` yapıldı.
 - Sonraki: `/video` uç noktası + sitede "Video / Sahne" sekmesi (sahne listesi, birleştirme, müzik); kısa animasyonları arka planı silinmiş sprite sheet'e çevirme.
 
 ## 1. ⬜ Sipariş sistemi (siparis.yml, AJAN_TOKEN gerekli)
