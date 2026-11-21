@@ -42,11 +42,20 @@ image = (
 
 app = modal.App(APP_NAME, image=image)
 
-NEG = ("blurry, distorted, deformed, disfigured, extra limbs, extra fingers, bad anatomy, static, still image, frozen, "
-       "low quality, worst quality, jpeg artifacts, watermark, text, subtitles, flicker, morphing face, ugly")
+NEG = ("blurry, distorted, deformed, disfigured, extra limbs, extra fingers, bad anatomy, still image, frozen, "
+       "low quality, worst quality, jpeg artifacts, watermark, text, subtitles, flicker, morphing face, ugly, "
+       "oversaturated, overexposed, "
+       "camera shake, shaky camera, handheld camera, camera movement, camera pan, zoom in, zoom out, dolly, fast cuts")
+# Kamera ayarı: varsayılan sabit (çizgi filmde sallanma olmasın)
+KAMERA = {
+    "sabit": "static camera, fixed locked-off shot, tripod, the camera does not move, stable background",
+    "takip": "smooth slow camera tracking alongside the character, steady camera, no shake",
+    "yaklas": "very slow smooth push-in towards the character, steady camera, no shake",
+}
 
 
-@app.cls(gpu="L4", memory=32768, timeout=3600, scaledown_window=60, max_containers=1)
+# max_containers=3 → en fazla 3 sahne aynı anda (3 GPU). Toplam GPU süresi (maliyet) aynı, bekleme 1/3.
+@app.cls(gpu="L4", memory=32768, timeout=3600, scaledown_window=60, max_containers=3)
 class Video:
     @modal.enter()
     def yukle(self):
@@ -65,7 +74,7 @@ class Video:
 
     @modal.method()
     def klip(self, ilk_png: bytes, prompt: str, seed: int = 42, width: int = 832, height: int = 480,
-             kare: int = 121, adim: int = 30, guidance: float = 5.0):
+             kare: int = 121, adim: int = 40, guidance: float = 5.0, kamera: str = "sabit"):
         """Bir klip üretir → (mp4 baytları, son kare png baytları, saniye)."""
         import io
         import tempfile
@@ -78,6 +87,7 @@ class Video:
         t = time.time()
         im = Image.open(io.BytesIO(ilk_png)).convert("RGB")
         im = ImageOps.fit(im, (width, height), Image.LANCZOS)  # en-boy oranını koruyarak kırp
+        prompt = f"{prompt}, {KAMERA.get(kamera, KAMERA['sabit'])}"
         g = torch.Generator("cpu").manual_seed(seed)
         kareler = self.pipe(image=im, prompt=prompt, negative_prompt=NEG, height=height, width=width,
                             num_frames=kare, num_inference_steps=adim, guidance_scale=guidance,
@@ -93,18 +103,24 @@ class Video:
 
 
 @app.local_entrypoint()
-def dene(ilk: str = "ilk_kare.png", sahneler: str = "sahneler.json", seed: int = 42):
+def dene(sahneler: str = "sahneler.json", seed: int = 42):
+    """Her sahnenin kendi ilk karesi var (ilk_kare_N.png) → sahneler birbirini beklemez, paralel üretilir.
+    sahneler.json: [{"prompt": "hareket", "kamera": "sabit|takip|yaklas"}, ...]"""
     import json
     import os
     import subprocess
+    import time
 
     ozet = open(os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null"), "a")
     liste = json.load(open(sahneler))
     v = Video()
-    son = open(ilk, "rb").read()
+    t = time.time()
+    isler = [v.klip.spawn(open(f"ilk_kare_{i}.png", "rb").read(), s["prompt"], seed + i,
+                          kare=int(s.get("kare", 121)), kamera=s.get("kamera", "sabit"))
+             for i, s in enumerate(liste, 1)]
     dosyalar, toplam = [], 0.0
-    for i, s in enumerate(liste, 1):
-        mp4, son, sn = v.klip.remote(son, s["prompt"], seed + i, kare=int(s.get("kare", 121)))
+    for i, (s, is_) in enumerate(zip(liste, isler), 1):
+        mp4, son, sn = is_.get()
         ad = f"video_sahne_{i}.mp4"
         open(ad, "wb").write(mp4)
         open(f"video_sahne_{i}_son.png", "wb").write(son)
@@ -117,5 +133,6 @@ def dene(ilk: str = "ilk_kare.png", sahneler: str = "sahneler.json", seed: int =
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", "liste.txt",
                     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", "video_tam.mp4"], check=True)
     maliyet = toplam / 3600 * 0.80  # L4 ≈ 0.80 $/saat (yaklaşık)
-    msg = f"Toplam GPU {round(toplam)} sn ≈ {maliyet:.2f} $ (yükleme hariç) · video_tam.mp4 hazır"
+    msg = (f"Toplam GPU {round(toplam)} sn ≈ {maliyet:.2f} $ (yükleme hariç) · bekleme {round(time.time() - t)} sn "
+           f"({len(liste)} sahne paralel) · video_tam.mp4 hazır")
     print(msg); ozet.write(f"- {msg}\n")

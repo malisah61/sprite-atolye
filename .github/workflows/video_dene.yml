@@ -6,12 +6,9 @@ name: Video dene
 on:
   workflow_dispatch:
     inputs:
-      ilk_tarif:
-        description: 'İlk kare (sahne) tarifi'
-        default: 'young woman adventurer with long red hair, green tunic and brown boots, walking on a sunny forest path, full body, side view, 2D cartoon animation still, colorful cartoon background with trees, clean bold outlines, flat colors'
       sahneler:
-        description: 'Sahneler (JSON listesi: [{"prompt": "..."}])'
-        default: '[{"prompt": "2D cartoon animation, the red-haired young woman walks forward along the forest path with a smooth walking cycle, hair and tunic swaying, camera tracking alongside her"}, {"prompt": "2D cartoon animation, the red-haired young woman stops walking and looks around curiously, turning her head left and right, leaves gently falling"}, {"prompt": "2D cartoon animation, the red-haired young woman draws a sword and raises it in a brave heroic pose, determined face, wind blowing her hair"}]'
+        description: 'Sahneler (JSON: [{"ilk": "ilk kare tarifi", "prompt": "hareket", "kamera": "sabit|takip|yaklas"}])'
+        default: '[{"ilk": "young woman adventurer with long red hair, green tunic, brown belt and brown boots, walking on a sunny forest path, full body, side view, 2D cartoon animation still, colorful cartoon forest background with trees, clean bold outlines, flat colors", "prompt": "2D cartoon animation, the red-haired young woman walks along the forest path with a smooth natural walking cycle, hair and tunic swaying gently", "kamera": "sabit"}, {"ilk": "young woman adventurer with long red hair, green tunic, brown belt and brown boots, standing still on a forest path and looking to the side curiously, full body, three-quarter view, 2D cartoon animation still, colorful cartoon forest background with trees, clean bold outlines, flat colors", "prompt": "2D cartoon animation, the red-haired young woman slowly turns her head left and right looking around curiously, blinks, leaves gently falling", "kamera": "sabit"}, {"ilk": "young woman adventurer with long red hair, green tunic, brown belt and brown boots, holding a steel sword raised in a brave heroic pose in a forest clearing, determined face, full body, front view, 2D cartoon animation still, colorful cartoon forest background with trees, clean bold outlines, flat colors", "prompt": "2D cartoon animation, the red-haired young woman slowly raises her sword higher in a brave heroic pose, wind gently blowing her hair and tunic", "kamera": "sabit"}]'
       seed:
         default: '42'
 
@@ -41,22 +38,24 @@ jobs:
           git fetch -q --depth 1 origin deneme-sonuclari
           F=$(git ls-tree -r --name-only FETCH_HEAD | grep 'kars_lora_cizgi_film_cartoon.png' | tail -1)
           [ -n "$F" ] && git show "FETCH_HEAD:$F" > referans.png && echo "referans: $F" || true
-      - name: İlk kare (canlı motor, çizgi film LoRA + referans)
-        run: python3 modal/video_ilk_kare.py "${{ inputs.ilk_tarif }}" referans.png
-      - name: Sahneleri hareketli video olarak üret (Wan 2.2, L4)
+      - name: Sahne listesini yaz
         run: |
           cat > sahneler.json <<'JSON'
           ${{ inputs.sahneler }}
           JSON
-          timeout 5400 modal run modal/video.py --ilk ilk_kare.png --sahneler sahneler.json --seed ${{ inputs.seed }}
+          python3 -c "import json;print(len(json.load(open('sahneler.json'))),'sahne')"
+      - name: Her sahnenin ilk karesi (canlı motor, çizgi film LoRA + referans karakter)
+        run: python3 modal/video_ilk_kare.py sahneler.json referans.png
+      - name: Sahneleri aynı anda (paralel GPU) hareketli video olarak üret (Wan 2.2, L4)
+        run: timeout 5400 modal run modal/video.py --sahneler sahneler.json --seed ${{ inputs.seed }}
       - name: Video motorunu durdur (kredi yemesin)
         if: always()
         run: modal app stop -y sprite-atolye-video || true
       - name: Sonuçları kaydet (deneme-sonuclari dalı)
         if: always()
         run: |
-          ls ilk_kare.png video_*.mp4 >/dev/null 2>&1 || exit 0
-          mkdir -p /tmp/out && cp ilk_kare.png video_* /tmp/out/ 2>/dev/null || true
+          ls ilk_kare_*.png video_*.mp4 >/dev/null 2>&1 || exit 0
+          mkdir -p /tmp/out && cp ilk_kare_*.png video_* /tmp/out/ 2>/dev/null || true
           git config user.name "github-actions"; git config user.email "actions@github.com"
           for i in 1 2 3; do
             git fetch origin deneme-sonuclari && git checkout -f -B deneme-sonuclari origin/deneme-sonuclari
@@ -69,6 +68,6 @@ jobs:
         with:
           name: video
           path: |
-            ilk_kare.png
+            ilk_kare_*.png
             video_*
           if-no-files-found: ignore
