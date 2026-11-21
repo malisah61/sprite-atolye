@@ -23,6 +23,14 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - ⬜ d) Yüz düzeltme
 - ⬜ e) "En iyisini seç" (estetik/CLIP puanı)
 
+## V. 🔄 Video / hareketli çizgi film (kullanıcı isteği, 21 Kasım)
+- Model: **Wan 2.2 TI2V-5B** (Apache-2.0, ücretsiz, ticari kullanım serbest), ayrı uygulama `sprite-atolye-video` (L4, max 1 GPU, 60 sn'de kapanır). Deneme: `video_dene.yml`.
+- 21 Kasım ilk deneme: ilk kare kendi motorumuzla (çizgi film LoRA + referans), 3 sahne × 5 sn (832×480, 24 fps), son kare → sonraki sahnenin ilk karesi.
+  - Süre: klip başına ~6,5 dk GPU (30 adım) ≈ 0,09 $/klip; 15 sn video ≈ 0,26 $ GPU (+ yükleme/kurulum ≈ 0,1 $).
+  - Sonuç: 1. sahne (yürüme) çok iyi — gerçek akıcı hareket, stil korunuyor. Zincirleme sahnelerde kalite düşüyor: 2. sahnede renkler aşırı doygun, arka plan bulanık; 3. sahnede yüz bozuluyor, kılıç efektleri tuhaf.
+  - Düzeltme fikirleri (sıradaki): (1) her sahnenin ilk karesini son kareden değil, kendi motorumuzla taze çiz (referans = karakter, IP-Adapter) ya da son kareye renk eşitleme + hafif SDXL img2img "tazeleme"; (2) adım 30→40; (3) kılıç gibi nesneleri ilk karede zaten çiz (model yoktan nesne çıkarırken bozuluyor).
+- Sonraki: `/video` uç noktası + sitede "Video / Sahne" sekmesi (sahne listesi, birleştirme, müzik); kısa animasyonları arka planı silinmiş sprite sheet'e çevirme.
+
 ## 1. ⬜ Sipariş sistemi (siparis.yml, AJAN_TOKEN gerekli)
 ## 2. ⬜ Yapay zekâ ile gerçek animasyon (OpenPose ControlNet + IP-Adapter, /animate)
 ## 3. ⬜ Tileset (Wang/blob geçişleri, Godot .tres)
@@ -46,3 +54,4 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - 19-20 Kasım: ~17 motor kurulumu + ~8 üretim + 3 karşılaştırma denemesi → tahmini 2-4 $ (20 $ sınırının çok altında).
 - 20 Kasım akşamı (gündüz oturumu): ~4 kurulum+test daha → +~1 $
 - 21 Kasım: 1 LoRA karşılaştırması + 1 kurulum/test → +~0.5 $. Ay toplamı tahmini 4-6 $.
+- 21 Kasım sabah: Modal panelinde gerçek kullanım **3 $ / 30 $** (kullanıcının ekran görüntüsü). Video denemesi +~0,35 $.
