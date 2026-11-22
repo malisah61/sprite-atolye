@@ -48,16 +48,21 @@ IPA_FILE = "ip-adapter_sdxl_vit-h.safetensors"
 # DERSLER — üretimlerde tekrar eden hatalardan çıkarılan kurallar (bkz. DERSLER.md).
 # Tarifte anahtar kelime geçerse: negatife eklenir; iki_asama=True ise pixel stilinde önce detaylı bir taslak
 # çizilir, sonra o taslak referans (IP-Adapter 0.4) verilerek pixel'e çevrilir (nesneler bozulmasın diye).
+# "kontrol": (iyi, kötü) → taslak adayları CLIP ile puanlanır, nesnesi gerçekten çizilmiş olan seçilir.
+# Dikkat (22 Kasım): negatifi fazla sert yazma — "staff, branch, spear" yasaklanınca kaval tamamen kayboldu.
 # Yeni bir hata tekrar ederse buraya bir satır ekle + DERSLER.md'ye yaz.
 DERSLER = [
     {"ad": "kaval", "anahtar": ["flute", "fife", "recorder", "piper", "pied piper", "kaval", "pan pipe"],
-     "negatif": "violin, fiddle, walking stick, cane, staff, wand, branch, spear, second flute, extra flute", "iki_asama": True},
+     "negatif": "violin, fiddle, walking stick, cane, second flute", "iki_asama": True,
+     "kontrol": ("a person playing a wooden flute held at the lips", "a person with empty hands")},
     {"ad": "keman", "anahtar": ["violin", "fiddle", "violinist", "keman"],
-     "negatif": "walking stick, cane, pole, post, briefcase, guitar, second violin", "iki_asama": True},
+     "negatif": "walking stick, cane, pole, briefcase, guitar", "iki_asama": True,
+     "kontrol": ("a person holding a violin", "a person holding a stick")},
     {"ad": "kitap", "anahtar": ["book", "spellbook", "tome", "grimoire", "kitap"],
-     "negatif": "briefcase, suitcase, bag, box", "iki_asama": True},
+     "negatif": "briefcase, suitcase", "iki_asama": True,
+     "kontrol": ("a person holding a book", "a person holding a bag")},
     {"ad": "silah", "anahtar": ["sword", "axe", "bow", "rifle", "gun", "dagger", "kılıç"],
-     "negatif": "second sword, extra weapon, floating weapon", "iki_asama": True},
+     "negatif": "second sword, floating weapon", "iki_asama": True},
     {"ad": "insan kulağı", "anahtar": ["human", "man", "woman", "boy", "girl", "piper", "scholar", "knight", "wizard", "farmer", "soldier", "king", "queen"],
      "haric": ["elf", "elven", "goblin", "orc", "fairy", "pointed ears", "demon", "devil", "vampire", "gnome"],
      "negatif": "elf ears, pointed ears"},
@@ -71,9 +76,12 @@ def dersleri_uygula(prompt, negative):
     p = prompt.lower()
     has = lambda w: re.search(r"(?<![a-zçğıöşü])" + re.escape(w) + r"(?![a-zçğıöşü])", p) is not None
     adlar, ekler, iki = [], [], False
+    dersleri_uygula.kontrol = []
     for d in DERSLER:
         if any(has(w) for w in d["anahtar"]) and not any(has(w) for w in d.get("haric", [])):
             adlar.append(d["ad"])
+            if d.get("kontrol"):
+                dersleri_uygula.kontrol.append(d["kontrol"])
             ekler += [x.strip() for x in d["negatif"].split(",") if x.strip() and x.strip() not in negative]
             iki = iki or d.get("iki_asama", False)
     ekler = list(dict.fromkeys(ekler))
@@ -748,10 +756,14 @@ class Motor:
                 tp = f"{tp}, detailed 2D game illustration, clean shapes"
                 lora_once = self._lora
                 self._lora = (None, None)
+                kontrol = list(getattr(dersleri_uygula, "kontrol", []))
                 try:
-                    d0 = self._run(tp, negative, seed, 1, width, height, "other", False, False, False,
+                    d0 = self._run(tp, negative, seed, 2 if kontrol else 1, width, height, "other", False, False, False,
                                    None, 0.0, False, None, "", style_text, None)
-                    ref_img, ref_scale, taslak = self._ref(d0["images"][0]), 0.4, True
+                    adaylar = [self._ref(x) for x in d0["images"]]
+                    puanlar = [sum(self._clip_pref(a, iyi, kotu) for iyi, kotu in kontrol) / max(1, len(kontrol)) for a in adaylar] if kontrol else [1.0]
+                    eniyi = max(range(len(adaylar)), key=lambda k: puanlar[k])
+                    ref_img, ref_scale, taslak = adaylar[eniyi], 0.4, [round(x, 2) for x in puanlar]
                 finally:
                     self._lora = lora_once
             r = self._run(prompt, negative, seed, n, width, height, style, transparent, auto, native,
