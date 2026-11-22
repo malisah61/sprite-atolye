@@ -79,7 +79,7 @@ jobs:
           IN_YON: ${{ inputs.yon }}
         run: |
           ON=$(echo "${{ inputs.donus }}" | awk '{print $4}')
-          /opt/blender-4.2.3-linux-x64/blender -b --python uc_boyut/blender_anim.py -- /tmp/out/model.ply /tmp/out/anim "$IN_YON" 8 256 "${ON:-270}" "$IN_EGIM" "$IN_ANIM" 2>&1 | grep -E "boy |bitti|Error|rror:|Traceback|line [0-9]" | tail -30
+          /opt/blender-4.2.3-linux-x64/blender -b --python uc_boyut/blender_anim.py -- /tmp/out/model.ply /tmp/out/anim "$IN_YON" 8 256 "${ON:-270}" "$IN_EGIM" "$IN_ANIM" 2>&1 | grep -E "boy |kesilen|bitti|Error|rror:|Traceback|line [0-9]" | tail -30
           python3 uc_boyut/sayfa_anim.py /tmp/out/anim
       - name: Motorla yeniden boya (isteğe bağlı)
         if: ${{ inputs.tarif != '' }}

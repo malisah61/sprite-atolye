@@ -135,6 +135,30 @@ for j, a in enumerate(adlar):
         ic = np.abs(V[:, 0] - cx) < 0.65 * abs(kx - cx)
         W[ic, j_govde] += W[ic, j]
         W[ic, j] = 0
+# TripoSR bacakları/kolları gövdeye yapışık çıkarır → adım atınca aradaki yüzler perde gibi gerilir.
+# Farklı uzuvlara ait köşeleri birleştiren yüzleri kes (sol bacak↔sağ bacak, kol↔gövde).
+import bmesh  # noqa: E402
+
+baskin = np.array(adlar)[W.argmax(1)]
+def grup(a):
+    if a.startswith(("uyluk", "baldir")):
+        return "bacak" + a[-1]
+    if a.startswith(("pazu", "onkol")):
+        return "kol" + a[-1]
+    return "govde"
+G = np.array([grup(a) for a in baskin])
+bm = bmesh.new()
+bm.from_mesh(me)
+bm.faces.ensure_lookup_table()
+sil = []
+for f in bm.faces:
+    gs = {G[v.index] for v in f.verts}
+    if ("bacakL" in gs and "bacakR" in gs) or (any(g.startswith("kol") for g in gs) and "govde" in gs):
+        sil.append(f)
+bmesh.ops.delete(bm, geom=sil, context="FACES_ONLY")
+bm.to_mesh(me)
+bm.free()
+print(f"kesilen yüz: {len(sil)}", flush=True)
 for j, a in enumerate(adlar):
     g = ob.vertex_groups.new(name=a)
     for i in np.nonzero(W[:, j] > 0.02)[0]:
