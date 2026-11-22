@@ -1,0 +1,160 @@
+name: Sipariş (oyun repolarına toplu asset)
+
+# Hedef oyun reposundaki assets/siparis.json'u okur, her sipariş için motorla görsel üretir (otomatik temizlik).
+# "hat": "komando" olanlar ayrıca 3D'ye çevrilir (TripoSR) ve Quaternius UAL iskeletiyle Komando'nun 8 yön ×
+# 8 animasyon sprite sayfası düzeninde render alınır (siparis/komando_hatti.py).
+# Çıktılar her zaman deneme-sonuclari dalına (siparis/<repo>/<zaman>/) yazılır.
+# AJAN_TOKEN secret'ı varsa hedef repoda assets/otomatik-<tarih> dalı açılıp PR gönderilir.
+on:
+  workflow_dispatch:
+    inputs:
+      hedef:
+        description: 'Hedef oyun reposu (malisah61/...)'
+        default: 'malisah61/komando'
+      dal:
+        description: 'Hedef reponun siparis.json okunacak dalı'
+        default: 'main'
+      dosya:
+        description: 'Sipariş dosyası'
+        default: 'assets/siparis.json'
+      sadece:
+        description: 'İsteğe bağlı: sadece bu adlar (virgüllü)'
+        default: ''
+      hizli:
+        description: 'Hızlı deneme (Komando hattında sadece idle/walk/death, düşük örnekleme)'
+        default: 'false'
+
+permissions:
+  contents: write
+
+jobs:
+  liste:
+    runs-on: ubuntu-latest
+    outputs:
+      adlar: ${{ steps.l.outputs.adlar }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.hedef }}
+          ref: ${{ inputs.dal }}
+          path: hedef
+          sparse-checkout: ${{ inputs.dosya }}
+          sparse-checkout-cone-mode: false
+      - id: l
+        env:
+          IN_DOSYA: ${{ inputs.dosya }}
+          IN_SADECE: ${{ inputs.sadece }}
+        run: python3 siparis/siparis.py liste "hedef/$IN_DOSYA" "$IN_SADECE"
+
+  uret:
+    needs: liste
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        ad: ${{ fromJson(needs.liste.outputs.adlar) }}
+    env:
+      MOTOR_URL: https://malisah61--sprite-atolye-motor-web.us-east.modal.run
+      SPRITE_KEY: ${{ secrets.SPRITE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.hedef }}
+          ref: ${{ inputs.dal }}
+          path: hedef
+          sparse-checkout: |
+            ${{ inputs.dosya }}
+            tools/blender
+            kaynak/ual
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Görsel üret (motor)
+        id: g
+        env:
+          IN_DOSYA: ${{ inputs.dosya }}
+        run: |
+          pip install --quiet pillow
+          python3 siparis/siparis.py uret "hedef/$IN_DOSYA" "${{ matrix.ad }}" "/tmp/cikti/${{ matrix.ad }}"
+      - name: TripoSR kur (CPU)
+        if: ${{ steps.g.outputs.hat == 'komando' }}
+        run: |
+          git clone --depth 1 https://github.com/VAST-AI-Research/TripoSR.git
+          pip install --quiet torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu
+          pip install --quiet omegaconf==2.3.0 einops==0.7.0 transformers==4.35.0 trimesh huggingface-hub pillow numpy "rembg==2.0.59" "onnxruntime==1.19.2" scikit-image
+          pip install --quiet scikit-build-core cmake ninja pybind11 && pip install --quiet --no-build-isolation git+https://github.com/tatsy/torchmcubes.git
+      - name: Görselden 3D (TripoSR)
+        if: ${{ steps.g.outputs.hat == 'komando' }}
+        run: |
+          D=/tmp/cikti/${{ matrix.ad }}
+          python3 uc_boyut/gorselden_3d.py $D/gorsel.png $D/model.glb 256 2>&1 | grep -v Warning || true
+          ls -la $D
+      - name: Blender kur
+        if: ${{ steps.g.outputs.hat == 'komando' }}
+        run: |
+          curl -sL https://download.blender.org/release/Blender4.2/blender-4.2.3-linux-x64.tar.xz | tar -xJ -C /opt
+          sudo apt-get install -y -qq libxi6 libxkbcommon0 libsm6 libxrender1 libgl1 >/dev/null
+      - name: Komando hattı (UAL iskeleti, 8 yön sprite sayfası)
+        if: ${{ steps.g.outputs.hat == 'komando' }}
+        env:
+          KOMANDO_DIR: ${{ github.workspace }}/hedef
+        run: |
+          D=/tmp/cikti/${{ matrix.ad }}
+          Q=""; [ "${{ inputs.hizli }}" = "true" ] && Q="--quick"
+          /opt/blender-4.2.3-linux-x64/blender -b --python siparis/komando_hatti.py -- $D/model.ply $D "${{ matrix.ad }}" "${{ steps.g.outputs.ekipman }}" $Q 2>&1 \
+            | grep -E "manken|kollar|UYARI|ağırlık|kesilen|tamam|YAZILDI|Error|rror:|Traceback|line [0-9]" | tail -40
+          ls $D/*_sprite_sheet.png
+          python3 siparis/onizleme.py $D/${{ matrix.ad }}_sprite_sheet.png $D/onizleme.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: siparis-${{ matrix.ad }}
+          path: /tmp/cikti/
+          if-no-files-found: ignore
+
+  teslim:
+    needs: uret
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    env:
+      AJAN_TOKEN: ${{ secrets.AJAN_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/cikti
+          pattern: siparis-*
+          merge-multiple: true
+      - name: Kaydet (deneme-sonuclari/siparis)
+        run: |
+          ls -R /tmp/cikti | head -50
+          R=$(echo "${{ inputs.hedef }}" | cut -d/ -f2)
+          D="siparis/$R/$(date -u +%Y%m%d-%H%M%S)"
+          echo "D=$D" >> $GITHUB_ENV
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          for i in 1 2 3; do
+            git fetch origin deneme-sonuclari && git checkout -f -B deneme-sonuclari origin/deneme-sonuclari
+            mkdir -p "$D" && cp -r /tmp/cikti/* "$D/"
+            find "$D" -name "model.*" -size +20M -delete
+            git add "$D" && git commit -qm "Sipariş $D" && git push -q origin deneme-sonuclari && break
+            sleep 5
+          done
+          echo "Çıktılar: deneme-sonuclari/$D" >> $GITHUB_STEP_SUMMARY
+      - name: Hedef repoya PR (AJAN_TOKEN varsa)
+        if: ${{ env.AJAN_TOKEN != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.AJAN_TOKEN }}
+        run: |
+          T=$(date -u +%Y%m%d-%H%M)
+          git clone --depth 1 "https://x-access-token:${AJAN_TOKEN}@github.com/${{ inputs.hedef }}.git" /tmp/hedef
+          cd /tmp/hedef && git checkout -b "assets/otomatik-$T"
+          python3 $GITHUB_WORKSPACE/siparis/teslim.py /tmp/cikti /tmp/hedef
+          git config user.name "Sprite Atölye"; git config user.email "actions@github.com"
+          git add -A && git commit -qm "Sprite Atölye: sipariş çıktıları ($T)" && git push -q origin "assets/otomatik-$T"
+          gh pr create --repo "${{ inputs.hedef }}" --head "assets/otomatik-$T" --title "Sprite Atölye: sipariş çıktıları ($T)" \
+            --body "Sprite Atölye sipariş sistemiyle üretildi. Önizlemeler: sprite-atolye deneme-sonuclari dalı, $D"
