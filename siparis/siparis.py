@@ -74,6 +74,31 @@ def genislik_orani(png_bytes):
     return (b[2] - b[0]) / max(1, b[3] - b[1])
 
 
+def figur_sayisi(png_bytes):
+    """Yan yana iki kişi çizildi mi? (23 Kasım: madenci adayı iki kişiydi, birbirine değiyordu)
+    Sütun doluluk profilinin ortasında (%30-70) derin bir çukur, iki yanında yüksek tepeler → 2."""
+    import io
+
+    from PIL import Image
+    a = Image.open(io.BytesIO(png_bytes)).convert("RGBA").getchannel("A")
+    b = a.getbbox()
+    if not b:
+        return 0
+    a = a.crop(b)
+    w, h = a.size
+    px = a.load()
+    c = [sum(1 for y in range(0, h, 4) if px[x, y] > 40) for x in range(w)]
+    tepe = max(c) or 1
+    i0, i1 = int(w * 0.3), int(w * 0.7)
+    if i1 <= i0:
+        return 1
+    m = min(range(i0, i1), key=lambda x: c[x])
+    sol, sag = max(c[:m] or [0]), max(c[m:] or [0])
+    if sol > 0.5 * tepe and sag > 0.5 * tepe and c[m] < 0.25 * min(sol, sag):
+        return 2
+    return 1
+
+
 def uret(yol, ad, cikis):
     s = [x for x in oku(yol) if temiz_ad(x["ad"]) == ad][0]
     os.makedirs(cikis, exist_ok=True)
@@ -107,6 +132,9 @@ def uret(yol, ad, cikis):
     sec = 0
     if komando and len(resimler) > 1:
         oran = [genislik_orani(r) for r in resimler]
+        figur = [figur_sayisi(r) for r in resimler]
+        print("figür sayıları:", figur)
+        oran = [o if f == 1 else 9.0 for o, f in zip(oran, figur)]   # çok kişili aday seçilmez
         print("en/boy oranları:", [round(o, 2) for o in oran])
         # gerçek T-poz (kollar açık, oran > 0.8) varsa o; yoksa BOYDAN (ayaklar dahil, ince uzun: oran < 0.5)
         # adaylar arasında motorun en iyisi. Belden kesik / eller belde (geniş) adaylar 3D'de bozuk çıkıyor
