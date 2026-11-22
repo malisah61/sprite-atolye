@@ -25,7 +25,7 @@ ob = [o for o in bpy.context.scene.objects if o.type == "MESH"][0]
 bpy.context.view_layer.objects.active = ob
 ob.select_set(True)
 # ön yüz -Y'ye (Blender önü) bakacak şekilde döndür, dönüşü uygula
-ob.rotation_euler = (0, 0, math.radians(on_aci + 90))
+ob.rotation_euler = (0, 0, math.radians(on_aci))  # TripoSR: ön yüz +X → 270° ile -Y
 bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
 
 me = ob.data
