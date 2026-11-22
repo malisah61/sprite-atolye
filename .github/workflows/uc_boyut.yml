@@ -1,0 +1,70 @@
+name: 3D'den yönler (Blender, GPU'suz)
+
+on:
+  workflow_dispatch:
+    inputs:
+      gorsel:
+        description: 'deneme-sonuclari dalındaki görsel (örn: deneme/.../test_lora_cizgi_film.png)'
+        required: true
+      yon:
+        description: 'Yön sayısı (4 veya 8)'
+        default: '8'
+      boyut:
+        description: 'Sprite boyutu (px)'
+        default: '512'
+      donus:
+        description: 'Modeli dikleştirme dönüşü "rx ry rz on_aci" (derece)'
+        default: '0 0 0 0'
+
+permissions:
+  contents: write
+
+jobs:
+  uret:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: TripoSR kur (CPU)
+        run: |
+          git clone --depth 1 https://github.com/VAST-AI-Research/TripoSR.git
+          pip install --quiet torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu
+          pip install --quiet omegaconf==2.3.0 einops==0.7.0 transformers==4.35.0 trimesh huggingface-hub pillow numpy "rembg==2.0.59" "onnxruntime==1.19.2" scikit-image
+          pip install --quiet git+https://github.com/tatsy/torchmcubes.git
+      - name: Blender kur
+        run: |
+          curl -sL https://download.blender.org/release/Blender4.2/blender-4.2.3-linux-x64.tar.xz | tar -xJ -C /opt
+          sudo apt-get install -y -qq libxi6 libxkbcommon0 libsm6 libxrender1 libgl1 >/dev/null
+          /opt/blender-4.2.3-linux-x64/blender --version | head -1
+      - name: Görseli getir
+        env:
+          IN_G: ${{ inputs.gorsel }}
+        run: |
+          git fetch --depth 1 origin deneme-sonuclari
+          git show "FETCH_HEAD:$IN_G" > /tmp/giris.png
+      - name: Görselden 3D (TripoSR)
+        run: mkdir -p /tmp/out && python3 uc_boyut/gorselden_3d.py /tmp/giris.png /tmp/out/model.glb 256 2>&1 | grep -v Warning || true
+      - name: Blender ile yönler
+        env:
+          IN_YON: ${{ inputs.yon }}
+          IN_BOYUT: ${{ inputs.boyut }}
+          IN_DONUS: ${{ inputs.donus }}
+        run: |
+          ls -la /tmp/out
+          /opt/blender-4.2.3-linux-x64/blender -b --python uc_boyut/blender_yonler.py -- /tmp/out/model.ply /tmp/out "$IN_YON" "$IN_BOYUT" $IN_DONUS 2>&1 | grep -E "bitti|Error|error|Saved" | tail -20
+          pip install --quiet pillow && python3 uc_boyut/sayfa.py /tmp/out
+      - name: Kaydet (deneme-sonuclari/uc_boyut)
+        if: always()
+        run: |
+          ls /tmp/out 2>/dev/null || exit 0
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          D="uc_boyut/$(date -u +%Y%m%d-%H%M%S)"
+          for i in 1 2 3; do
+            git fetch origin deneme-sonuclari && git checkout -f -B deneme-sonuclari origin/deneme-sonuclari
+            mkdir -p "$D" && cp /tmp/out/* "$D/"
+            git add "$D" && git commit -qm "3D yönler $D" && git push -q origin deneme-sonuclari && break
+            sleep 5
+          done
