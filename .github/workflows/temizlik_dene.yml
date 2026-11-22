@@ -34,8 +34,6 @@ jobs:
           D="temizlik/$(date -u +%Y%m%d-%H%M%S)"
           for i in 1 2 3; do
             git fetch origin deneme-sonuclari && git checkout -f -B deneme-sonuclari origin/deneme-sonuclari
-            git rm -rq --cached . 2>/dev/null || true
-            find . -maxdepth 1 ! -name . ! -name .git ! -name uretim ! -name deneme ! -name temizlik -exec rm -rf {} +
             mkdir -p "$D" && cp /tmp/out/*.png "$D/"
             git add "$D" && git commit -qm "Temizlik denemesi $D" && git push -q origin deneme-sonuclari && break
             sleep 5
