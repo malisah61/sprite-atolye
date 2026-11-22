@@ -107,7 +107,18 @@ def lora_cizgi():
     yaz(f"Stil LoRA (çizgi film) + otomatik temizlik: GPU {d['seconds']} sn")
 
 
+def dersler():
+    # Ders testi: pixel kavalcıda kaval sopaya dönüşüyordu → ders kuralı + taslak→pixel uygulanmalı
+    d, s = post("/generate", {"prompt": "pixel art, Pied Piper of Hamelin, young human flute player, full body, playing a wooden flute at his lips, red and yellow medieval clothes, striped stockings, solo, plain flat solid medium gray background",
+                              "seed": 23, "n": 1, "width": 832, "height": 1216, "style": "pixel", "auto": True})
+    kaydet("ders_kavalci", d["images"][0])
+    assert "kaval" in (d.get("dersler") or []), f"ders uygulanmadı: {d.get('dersler')}"
+    assert d.get("iki_asama"), "taslak→pixel çalışmadı"
+    yaz(f"Dersler: {d.get('dersler')} · taslak→pixel: {d.get('iki_asama')} · GPU {d['seconds']} sn")
+
+
 dene("doku", doku)
+dene("dersler", dersler)
 dene("stil LoRA", lora_cizgi)
 dene("karışık yaratık", karisik)
 sys.exit(1 if hatalar else 0)

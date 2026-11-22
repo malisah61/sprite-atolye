@@ -380,12 +380,19 @@ const ENGINES = {
         const bin = Uint8Array.from(atob(d.images[0]), ch => ch.charCodeAt(0));
         const c = await blobToCanvas(new Blob([bin], { type: 'image/png' }));
         c._fixes = (d.fixes && d.fixes[0]) || null;
+        c._dersler = d.dersler || [];
+        c._ikiAsama = !!d.iki_asama;
         return c;
       } finally { clearTimeout(to); }
     },
   },
 };
 const PARCA_TR = { 'bütün': 'görsel', head: 'kafa', face: 'yüz', wings: 'kanat', wing: 'kanat', tail: 'kuyruk', arms: 'kollar', arm: 'kol', legs: 'bacaklar', body: 'gövde', horns: 'boynuz', hands: 'eller' };
+function dersOzeti(c) {
+  // motorun geçmiş hatalardan öğrendiği kurallar (modal/app.py DERSLER)
+  if (!c || !c._dersler || !c._dersler.length) return '';
+  return ' · dersler: ' + c._dersler.join(', ') + (c._ikiAsama ? ' (taslak→pixel)' : '');
+}
 function duzeltmeOzeti(f) {
   if (!f || !f.length) return '';
   return ' · oto-kontrol: ' + f.map(x => x.parca === 'taslak' ? `4 taslaktan en iyisi (${Math.round((x.skor || 0) * 100)}%)` : x.parca === 'sonuç' ? `tarife uygun ✓ (${Math.round((x.skor || 0) * 100)}%)` : x.hata ? 'hata' : `${PARCA_TR[x.parca] || x.parca} ${({ 'tuttu': '✓', 'düzeltildi': '✓ düzeltildi', 'bulunamadı': '?', 'yok ✓': 'yok ✓', 'silindi': 'silindi ✓', 'silinemedi': 'silinemedi ✗', 'cilalandı': 'cilalandı ✓', 'tarife uygun': 'tarife uygun ✓' })[x.durum] || '✗ zayıf'}`).join(', ');
@@ -525,7 +532,7 @@ function uretimKarti({ desc, en, o, seed, model, ref = null, refScale = 0.6, eti
       const view = cloneCanvas(c);
       showScaled(view, 150);
       box.appendChild(view);
-      card.querySelector('.meta').textContent += ` · ${c.width}×${c.height}` + duzeltmeOzeti(c._fixes);
+      card.querySelector('.meta').textContent += ` · ${c.width}×${c.height}` + duzeltmeOzeti(c._fixes) + dersOzeti(c);
       const acts = document.createElement('div');
       acts.className = 'acts wrap';
       acts.innerHTML = '<button data-a="at">Atölye</button><button data-a="kay">Kaydet</button><button data-a="in">İndir</button>' +

@@ -16,6 +16,8 @@ Uç nokta (POST /generate):
            "tileable": bool     → dikişsiz doku
            "parts": [{"name":"head","want":"monkey head..."}], "base": "snake" → otomatik parça kontrolü ve düzeltme
            "lora": "cartoon"|"chibi"|"dark", "lora_weight": 0-2 → stile özel LoRA (tetik kelimesi otomatik eklenir)
+           "dersler": bool (varsayılan true) → DERSLER kuralları; "iki_asama": bool → pixel'de taslak+referans
+           cevapta "dersler": [uygulanan ders adları], "iki_asama": taslak kullanıldı mı
 POST /edit   {"image", "prompt", "strength", "mask"?, "reference"?} → metinle düzenleme / boyayarak (inpaint)
 POST /rembg  {"image": "<base64>"} → {"image": "<base64 RGBA png>"}
 """
@@ -42,6 +44,40 @@ STYLE_LORAS = {
 # ntc-ai/SDXL-LoRA-slider.extremely-detailed (mit; HD'de fark yok denecek kadar az)
 IPA_REPO = "h94/IP-Adapter"
 IPA_FILE = "ip-adapter_sdxl_vit-h.safetensors"
+
+# DERSLER — üretimlerde tekrar eden hatalardan çıkarılan kurallar (bkz. DERSLER.md).
+# Tarifte anahtar kelime geçerse: negatife eklenir; iki_asama=True ise pixel stilinde önce detaylı bir taslak
+# çizilir, sonra o taslak referans (IP-Adapter 0.4) verilerek pixel'e çevrilir (nesneler bozulmasın diye).
+# Yeni bir hata tekrar ederse buraya bir satır ekle + DERSLER.md'ye yaz.
+DERSLER = [
+    {"ad": "kaval", "anahtar": ["flute", "fife", "recorder", "piper", "pied piper", "kaval", "pan pipe"],
+     "negatif": "violin, fiddle, walking stick, cane, staff, wand, branch, spear, second flute, extra flute", "iki_asama": True},
+    {"ad": "keman", "anahtar": ["violin", "fiddle", "violinist", "keman"],
+     "negatif": "walking stick, cane, pole, post, briefcase, guitar, second violin", "iki_asama": True},
+    {"ad": "kitap", "anahtar": ["book", "spellbook", "tome", "grimoire", "kitap"],
+     "negatif": "briefcase, suitcase, bag, box", "iki_asama": True},
+    {"ad": "silah", "anahtar": ["sword", "axe", "bow", "rifle", "gun", "dagger", "kılıç"],
+     "negatif": "second sword, extra weapon, floating weapon", "iki_asama": True},
+    {"ad": "insan kulağı", "anahtar": ["human", "man", "woman", "boy", "girl", "piper", "scholar", "knight", "wizard", "farmer", "soldier", "king", "queen"],
+     "haric": ["elf", "elven", "goblin", "orc", "fairy", "pointed ears", "demon", "devil", "vampire", "gnome"],
+     "negatif": "elf ears, pointed ears"},
+]
+
+
+def dersleri_uygula(prompt, negative):
+    """Tarife uyan dersleri bulur → (yeni negatif, uygulanan ders adları, iki aşama gerekli mi)."""
+    import re
+
+    p = prompt.lower()
+    has = lambda w: re.search(r"(?<![a-zçğıöşü])" + re.escape(w) + r"(?![a-zçğıöşü])", p) is not None
+    adlar, ekler, iki = [], [], False
+    for d in DERSLER:
+        if any(has(w) for w in d["anahtar"]) and not any(has(w) for w in d.get("haric", [])):
+            adlar.append(d["ad"])
+            ekler += [x.strip() for x in d["negatif"].split(",") if x.strip() and x.strip() not in negative]
+            iki = iki or d.get("iki_asama", False)
+    ekler = list(dict.fromkeys(ekler))
+    return (negative + (", " + ", ".join(ekler) if ekler else ""))[:900], adlar, iki
 
 
 def download_models():
@@ -700,8 +736,29 @@ class Motor:
             style_text = str(body.get("style_text", "high quality 2D game art"))[:200]
             absent = body.get("absent") if isinstance(body.get("absent"), list) else None
             self._lora = self._lora_sec(body)
-            return self._run(prompt, negative, seed, n, width, height, style, transparent, auto, native,
-                             ref_img, ref_scale, tileable, parts, base, style_text, absent)
+            dersler, iki = [], False
+            if body.get("dersler", True) is not False and not tileable:
+                negative, dersler, iki = dersleri_uygula(prompt, negative)
+            taslak = False
+            if iki and style == "pixel" and ref_img is None and body.get("iki_asama", True) is not False:
+                # Ders: pixel'de elde tutulan nesneler (kaval, keman, kitap...) bozuluyor → önce detaylı taslak çiz,
+                # onu referans verip pixel'e çevir (21-22 Kasım kavalcı denemesi: referanssız kaval sopaya dönüştü, 0.4 referansla düzeldi)
+                import re as _re
+                tp = _re.sub(r"(?i)\b(pixel art|pixel-art|pixelated|16-bit|8-bit|pixel)\b,?", "", prompt).strip(" ,")
+                tp = f"{tp}, detailed 2D game illustration, clean shapes"
+                lora_once = self._lora
+                self._lora = (None, None)
+                try:
+                    d0 = self._run(tp, negative, seed, 1, width, height, "other", False, False, False,
+                                   None, 0.0, False, None, "", style_text, None)
+                    ref_img, ref_scale, taslak = self._ref(d0["images"][0]), 0.4, True
+                finally:
+                    self._lora = lora_once
+            r = self._run(prompt, negative, seed, n, width, height, style, transparent, auto, native,
+                          ref_img, ref_scale, tileable, parts, base, style_text, absent)
+            r["dersler"] = dersler
+            r["iki_asama"] = taslak
+            return r
 
         @api.post("/edit")
         def edit(body: dict, x_sprite_key: str = Header(default="")):

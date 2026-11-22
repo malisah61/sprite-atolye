@@ -82,7 +82,7 @@ jobs:
           os.makedirs("/tmp/out", exist_ok=True)
           for k, im in enumerate(d["images"]):
               open(f"/tmp/out/{ad}-{os.environ['IN_STIL']}-{k+1}.png", "wb").write(base64.b64decode(im))
-          msg = f"{len(d['images'])} görsel, GPU {d['seconds']} sn, toplam {round(time.time()-t0)} sn"
+          msg = f"{len(d['images'])} görsel, GPU {d['seconds']} sn, toplam {round(time.time()-t0)} sn, dersler: {d.get('dersler')}, taslak→pixel: {d.get('iki_asama')}"
           print(msg)
           open(os.environ["GITHUB_STEP_SUMMARY"], "a").write(msg + "\n")
           PY

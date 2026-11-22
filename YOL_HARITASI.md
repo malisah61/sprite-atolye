@@ -2,6 +2,8 @@
 
 Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bitti · 🔄 sürüyor · ⬜ sırada
 
+**Her gece önce `DERSLER.md` okunur**; yeni görülen ve tekrar eden hatalar oraya ve `modal/app.py` → `DERSLER`'e eklenir (kullanıcı isteği, 22 Kasım: "sorunları tekrarlama, öğrensin").
+
 ## 0. Görsel kalitesi (öncelikli)
 - ✅ a) İnce ayarlı ana model → **Lykon/dreamshaper-xl-1-0** (openrail++, ticari kullanım serbest). Karşılaştırma: `karsilastir.yml` (deneme motoru `modal run` ile, canlıya dokunmadan). 20 Kasım sonucu: pixel zombi ve HD aslanda belirgin daha detaylı, kılıç benzer, çizgi film kadında iki model de karakter sayfası üretti (negatife "reference sheet, model sheet, multiple poses" eklendi). pixel-art-xl LoRA ve IP-Adapter yeni modelle çalışıyor. Açılmama sebebi: DreamShaper'ın DEIS zamanlayıcı ayarı → DPM++ 2M Karras zorlandı. Eskiye dönüş: app.py'de BASE satırı.
 - ✅ b) Stile özel LoRA'lar — 21 Kasım: motorda `"lora"` alanı (tetik kelimesi otomatik), sitede "Stil güçlendirici" kutusu (varsayılan açık).
@@ -44,6 +46,7 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - kararli-v3: 2026-11-20 (0a öncesi)
 - kararli-v4: 2026-11-20 (DreamShaper'a geçiş öncesi)
 - kararli-v5: 2026-11-21 (stil LoRA'ları öncesi)
+- kararli-v6: 2026-11-22 (ders sistemi öncesi)
 
 ## Gece günlüğü
 - 2026-11-20: 0a başladı — karşılaştırma iş akışı eklendi; DreamShaper deneme motoru açılmadı (3/3 deneme hakkı kullanıldı), canlı motor değişmedi.
@@ -51,8 +54,11 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 
 - 2026-11-21 (gece): 0b — stil LoRA karşılaştırması (1 deneme motoru, 9 görsel), çizgi film + chibi LoRA'ları canlıya alındı, sitede "Stil güçlendirici".
 
+- 2026-11-22 (gündüz, kullanıcıyla): Hamelinli Kavalcı denemeleri (4 üretim); uret.yml'ye referans girdisi; **ders sistemi** (DERSLER.md + motorda otomatik kurallar + pixel'de taslak→referans).
+
 ## Tahmini Modal harcaması (Kasım 2026)
 - 19-20 Kasım: ~17 motor kurulumu + ~8 üretim + 3 karşılaştırma denemesi → tahmini 2-4 $ (20 $ sınırının çok altında).
 - 20 Kasım akşamı (gündüz oturumu): ~4 kurulum+test daha → +~1 $
 - 21 Kasım: 1 LoRA karşılaştırması + 1 kurulum/test → +~0.5 $. Ay toplamı tahmini 4-6 $.
 - 21 Kasım sabah: Modal panelinde gerçek kullanım **3 $ / 30 $** (kullanıcının ekran görüntüsü). Video denemesi +~0,35 $.
+- 22 Kasım: kavalcı üretimleri (4 iş) + 1 kurulum/test → +~0,5 $.
