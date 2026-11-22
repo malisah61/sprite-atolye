@@ -126,10 +126,20 @@ def download_ipa():
     snapshot_download(IPA_REPO, allow_patterns=["models/image_encoder/*"])
 
 
+# Arka plan silme modeli. 22 Kasım: isnet-general-use gri baltayı ve onu tutan eli sildi (beyaz gömlek sorunuyla aynı
+# aile: figürün parçasını arka plan sanıyor). BiRefNet (MIT lisans) aynı görselde balta + eli eksiksiz ayırdı.
+# "lite" sürüm CPU'da ~2 kat hızlı, sonuç aynı. Eskiye dönüş: REMBG_MODEL = "isnet-general-use"
+REMBG_MODEL = "birefnet-general-lite"
+
+
 def download_rembg():
     from rembg import new_session
 
     new_session("isnet-general-use")
+    try:
+        new_session(REMBG_MODEL)
+    except Exception as e:  # noqa — inmezse isnet ile devam
+        print(f"[rembg] {REMBG_MODEL} indirilemedi: {e}", flush=True)
 
 
 def border_bg(rgb):
@@ -195,7 +205,9 @@ def drop_debris(im, min_frac=0.03):
 
 def fill_holes(orig_rgb, cut, bg):
     """Karakterin içinde yanlışlıkla silinen yerleri (beyaz gömlek gibi) geri getirir.
-    İçeride kalan şeffaf boşluk arka plan rengine benzemiyorsa geri doldurulur."""
+    İçeride kalan şeffaf boşluk arka plan rengine benzemiyorsa geri doldurulur.
+    22 Kasım: arka plan düz değil de ortası açık (vinyet) olunca kol-gövde arasındaki gerçek boşluklar gri yama olarak
+    geri geliyordu → tek renk yerine YEREL arka plan tahmini (figür dışındaki piksellerin geniş bulanıklığı) ile kıyasla."""
     import numpy as np
     from PIL import Image
     from scipy import ndimage
@@ -203,7 +215,15 @@ def fill_holes(orig_rgb, cut, bg):
     a = np.array(cut.convert("RGBA"))
     opaque = a[..., 3] >= 110
     holes = ndimage.binary_fill_holes(opaque) & ~opaque
-    d = np.sqrt(((orig_rgb.astype(np.int32) - np.asarray(bg)) ** 2).sum(-1))
+    if not holes.any():
+        return cut
+    rgbf = orig_rgb.astype(np.float32)
+    dis = (~ndimage.binary_fill_holes(opaque)).astype(np.float32)  # figürün dışı = kesin arka plan
+    sig = max(orig_rgb.shape[:2]) / 12
+    agirlik = ndimage.gaussian_filter(dis, sig)
+    yerel = np.stack([ndimage.gaussian_filter(rgbf[..., c] * dis, sig) for c in range(3)], -1) / np.maximum(agirlik, 1e-3)[..., None]
+    yerel = np.where((agirlik > 0.02)[..., None], yerel, np.asarray(bg, np.float32))
+    d = np.minimum(np.sqrt(((rgbf - yerel) ** 2).sum(-1)), np.sqrt(((rgbf - np.asarray(bg)) ** 2).sum(-1)))
     restore = holes & (d > 40)
     a[restore, :3] = orig_rgb[restore]
     a[restore, 3] = 255
@@ -313,6 +333,7 @@ app = modal.App(APP_NAME, image=image)
 
 @app.cls(
     gpu="T4",
+    cpu=4.0,  # arka plan silme (BiRefNet) CPU'da çalışır; 4 çekirdekle ~5-10 sn
     timeout=600,
     scaledown_window=90,  # 90 sn boşta kalınca kapanır → kredi yemez
     max_containers=1,     # aynı anda tek GPU → bütçe güvende
@@ -362,6 +383,10 @@ class Motor:
         from rembg import new_session
 
         self.rb = new_session("isnet-general-use")
+        try:
+            self.rb = new_session(REMBG_MODEL)
+        except Exception as e:  # noqa
+            print(f"[rembg] {REMBG_MODEL} açılamadı, isnet kullanılıyor: {e}", flush=True)
 
     def _cut(self, im, force=False):
         """Yapay zekâ ile arka plan silme (gölge dahil) → RGBA."""
