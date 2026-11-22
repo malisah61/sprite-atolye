@@ -104,7 +104,9 @@ def dersleri_uygula(prompt, negative):
             dersleri_uygula.ek = f", wielding a single {w} with both hands"
         else:
             dersleri_uygula.ek = f", holding a single {w}, the other hand empty"
-        dersleri_uygula.kontrol.append((f"a character holding a single {w}", f"a character holding a {w} and a second weapon"))
+        # CLIP tüm resme bakınca silah sayamıyor (22 Kasım silah_dene: kılıçlı/kılıçsız farkı yok) → özel kontrol:
+        # CLIPSeg "weapon" bölgelerini say (kılıçlı aslanlarda 3 parça, sadece baltalıda 1)
+        dersleri_uygula.kontrol.append(("__tek_silah__", w))
         adlar.append("tek silah")
     return (negative + (", " + ", ".join(ekler) if ekler else ""))[:900], adlar, iki
 
@@ -645,8 +647,7 @@ class Motor:
                             generator=[torch.Generator("cuda").manual_seed(x) for x in seeds],
                             ip_adapter_image=ipa).images
             for x, im in zip(seeds, ims):
-                p = sum(self._clip_pref(im, iyi, kotu) for iyi, kotu in kontrol) / len(kontrol)
-                sonuc.append((p, x))
+                sonuc.append((self._kontrol_puan(im, kontrol), x))
         sonuc.sort(reverse=True)
         return sonuc[0][1], sonuc[0][0], [round(p, 2) for p, _ in sonuc]
 
@@ -661,9 +662,42 @@ class Motor:
             cos = self.clip(**inp).logits_per_image.float()[0, 0].item() / 100.0
         uyum = max(0.0, min(1.0, (cos - 0.15) / 0.2))
         if kontrol:
-            k = sum(self._clip_pref(im, iyi, kotu) for iyi, kotu in kontrol) / len(kontrol)
-            return 0.5 * uyum + 0.5 * k
+            return 0.5 * uyum + 0.5 * self._kontrol_puan(im, kontrol)
         return uyum
+
+    def _silah_sayisi(self, im, esik=0.3, min_alan=0.008):
+        """CLIPSeg 'weapon' olasılık haritasında ayrı büyük bölge sayısı (fazladan silah algılama)."""
+        import numpy as np
+        import torch
+        from PIL import Image
+        from scipy import ndimage
+
+        im = im.convert("RGB")
+        with torch.no_grad():
+            inp = self.seg_proc(text=["weapon"], images=[im], return_tensors="pt").to("cuda")
+            try:
+                lg = self.seg(**inp, interpolate_pos_encoding=True).logits
+            except TypeError:
+                inp = self.seg_proc(text=["weapon"], images=[im.resize((224, 224))], return_tensors="pt",
+                                    size={"height": 224, "width": 224}).to("cuda")
+                lg = self.seg(**inp).logits
+        pr = torch.sigmoid(lg).squeeze().float().cpu().numpy()
+        a = np.array(Image.fromarray((pr * 255).astype(np.uint8)).resize(im.size, Image.BILINEAR)) > esik * 255
+        lab, n = ndimage.label(a)
+        if not n:
+            return 0
+        return int((np.bincount(lab.ravel())[1:] > min_alan * a.size).sum())
+
+    def _kontrol_puan(self, im, kontrol):
+        """Ders kontrol çiftleri: (iyi, kötü) → CLIP tercihi; ("__tek_silah__", ad) → silah bölgesi sayısı (1 → 1.0)."""
+        puan = []
+        for iyi, kotu in kontrol:
+            if iyi == "__tek_silah__":
+                k = self._silah_sayisi(im)
+                puan.append(1.0 if k <= 1 else 0.5 if k == 2 else 0.0)
+            else:
+                puan.append(self._clip_pref(im, iyi, kotu))
+        return sum(puan) / max(1, len(puan))
 
     def _fix_parts(self, im, parts, base, style_text, negative, seed, ipa, absent=None, full_prompt=""):
         """Tarifteki parçalar resimde tutmamışsa o bölgeyi bulup yeniden çizer; olmaması gereken parçaları siler. Kayıt döner."""
@@ -910,7 +944,7 @@ class Motor:
                     d0 = self._run(tp, negative, seed, 2 if kontrol else 1, width, height, "other", False, False, False,
                                    None, 0.0, False, None, "", style_text, None)
                     adaylar = [self._ref(x) for x in d0["images"]]
-                    puanlar = [sum(self._clip_pref(a, iyi, kotu) for iyi, kotu in kontrol) / max(1, len(kontrol)) for a in adaylar] if kontrol else [1.0]
+                    puanlar = [self._kontrol_puan(a, kontrol) for a in adaylar] if kontrol else [1.0]
                     eniyi = max(range(len(adaylar)), key=lambda k: puanlar[k])
                     ref_img, ref_scale, taslak = adaylar[eniyi], 0.4, [round(x, 2) for x in puanlar]
                 finally:
