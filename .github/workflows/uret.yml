@@ -25,6 +25,12 @@ on:
       temizle:
         description: 'Otomatik temizlik (true/false)'
         default: 'true'
+      referans:
+        description: 'İsteğe bağlı: deneme-sonuclari dalındaki referans görselin yolu (örn: uretim/x.png)'
+        default: ''
+      ref_scale:
+        description: 'Referans gücü (0-1)'
+        default: '0.6'
 
 permissions:
   contents: write
@@ -38,6 +44,13 @@ jobs:
       SPRITE_KEY: ${{ secrets.SPRITE_KEY }}
     steps:
       - uses: actions/checkout@v4
+      - name: Referansı getir
+        if: ${{ inputs.referans != '' }}
+        env:
+          IN_REF: ${{ inputs.referans }}
+        run: |
+          git fetch --depth 1 origin deneme-sonuclari
+          git show "FETCH_HEAD:$IN_REF" > /tmp/referans.png
       - name: Üret
         env:
           IN_PROMPT: ${{ inputs.prompt }}
@@ -48,6 +61,7 @@ jobs:
           IN_H: ${{ inputs.yukseklik }}
           IN_AD: ${{ inputs.ad }}
           IN_TEMIZLE: ${{ inputs.temizle }}
+          IN_REF_SCALE: ${{ inputs.ref_scale }}
         run: |
           python3 - <<'PY'
           import json, os, base64, urllib.request, time, re
@@ -57,6 +71,9 @@ jobs:
             "width": int(os.environ["IN_W"]), "height": int(os.environ["IN_H"]),
             "auto": os.environ.get("IN_TEMIZLE", "true") == "true",
           }
+          if os.path.exists("/tmp/referans.png"):
+              body["reference"] = base64.b64encode(open("/tmp/referans.png", "rb").read()).decode()
+              body["ref_scale"] = float(os.environ.get("IN_REF_SCALE") or 0.6)
           req = urllib.request.Request(os.environ["MOTOR_URL"] + "/generate", data=json.dumps(body).encode(),
               headers={"Content-Type": "application/json", "X-Sprite-Key": os.environ["SPRITE_KEY"]})
           t0 = time.time()
