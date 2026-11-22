@@ -180,19 +180,28 @@ def taraf(v):
     for g in v.groups:
         if g.weight > en:
             en, ad = g.weight, gad[g.group]
+    t = "L" if ad.endswith(".L") else "R"
     if any(x in ad for x in ("thigh", "shin", "foot", "toe")):
-        return "L" if ad.endswith(".L") else "R"
-    return ""
+        return "bacak" + t
+    if any(x in ad for x in ("upper_arm", "forearm", "hand", "f_", "thumb", "palm")):
+        return "kol" + t
+    return "govde"
 
 
 T = [taraf(v) for v in me.vertices]
 bm = bmesh.new()
 bm.from_mesh(me)
-sil = [f for f in bm.faces if {T[v.index] for v in f.verts} >= {"L", "R"}]
+sil = []
+for f in bm.faces:
+    gs = {T[v.index] for v in f.verts}
+    if {"bacakL", "bacakR"} <= gs:
+        sil.append(f)
+    elif KOL_ACI and "govde" in gs and ({"kolL", "kolR"} & gs):
+        sil.append(f)   # gövdeye yapışık çizilen kol açılınca aradaki yüzler perde gibi gerilmesin
 bmesh.ops.delete(bm, geom=sil, context="FACES_ONLY")
 bm.to_mesh(me)
 bm.free()
-print(f"bacak arası kesilen yüz: {len(sil)}", flush=True)
+print(f"uzuvlar arası kesilen yüz: {len(sil)}", flush=True)
 
 # kollar aşağıdaysa: modeli T-poza aç (mankenin indirilmiş kollarının ters dönüşü, ağırlıklarla)
 if KOL_ACI:
