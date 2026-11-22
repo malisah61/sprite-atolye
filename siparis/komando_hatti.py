@@ -97,27 +97,66 @@ V[:, 0] = (V[:, 0] - cx) * s
 V[:, 1] = (V[:, 1] - cy) * s
 V[:, 2] = (V[:, 2] - z0) * s + M0
 H = MH
-# kolları mankenin kollarına hizala (T-poz): uzanım ve yükseklik
+for v, c in zip(me.vertices, V):
+    v.co = Vector(c)
+me.update()
+
+# kollar: görsel modeli çoğu zaman kollar aşağıda çiziyor. T-pozdaysa kol boyu/yüksekliği mankene hizalanır;
+# değilse mankenin kolları modele en iyi oturan açıya indirilir, ağırlıklar o pozdan aktarılır ve model
+# ters dönüşle T-poza açılır (hareketler T-poz dinlenme pozuna göre yazılmış).
 ust = V[V[:, 2] > M0 + 0.55 * H]
 uzan = float(np.percentile(np.abs(ust[:, 0]), 99.7))
-if uzan > 2.2 * sh_m:
+KOL_ACI = 0.0
+KOLLAR = [b for b in rig.pose.bones if b.name in ("DEF-upper_arm.L", "DEF-upper_arm.R")]
+
+
+def kol_poz(aci):
+    for pb in KOLLAR:
+        pb.matrix_basis = Matrix.Identity(4)
+    bpy.context.view_layer.update()
+    for pb in KOLLAR:
+        hw = rig.matrix_world @ pb.head
+        isaret = 1.0 if hw.x > 0 else -1.0
+        Rw = Matrix.Translation(hw) @ Matrix.Rotation(math.radians(isaret * aci), 4, "Y") @ Matrix.Translation(-hw)
+        pb.matrix = rig.matrix_world.inverted() @ Rw @ rig.matrix_world @ pb.matrix
+        bpy.context.view_layer.update()
+
+
+if uzan > 0.75 * m_uzan:
     kol = V[(np.abs(V[:, 0]) > 0.6 * uzan) & (V[:, 2] > M0 + 0.5 * H)]
     kol_z = float(np.median(kol[:, 2]))
-    k = float(np.clip((m_uzan - sh_m) / max(1e-6, uzan - sh_m), 0.7, 1.45))
+    k = float(np.clip((m_uzan - sh_m) / max(1e-6, uzan - sh_m), 0.8, 1.25))
     dz = m_kol_z - kol_z
     ax = np.abs(V[:, 0])
     t = np.clip((ax - 0.8 * sh_m) / (0.6 * sh_m), 0, 1)
     t = t * t * (3 - 2 * t)
-    t *= np.clip((V[:, 2] - (M0 + 0.42 * H)) / (0.08 * H), 0, 1)  # bacaklara dokunma
+    t *= np.clip((V[:, 2] - (M0 + 0.42 * H)) / (0.08 * H), 0, 1)
     hedef = sh_m + (ax - sh_m) * k
     V[:, 0] = np.sign(V[:, 0]) * (ax + t * (hedef - ax))
     V[:, 2] += t * dz
-    print(f"kollar hizalandı: uzanım {uzan:.2f}→{m_uzan:.2f} (k={k:.2f}), yükseklik {kol_z:.2f}→{m_kol_z:.2f}", flush=True)
+    for v, c in zip(me.vertices, V):
+        v.co = Vector(c)
+    me.update()
+    print(f"T-poz: kollar hizalandı (k={k:.2f}, yükseklik {kol_z:.2f}→{m_kol_z:.2f})", flush=True)
 else:
-    print(f"UYARI: kollar T-pozda değil (uzanım {uzan:.2f}); kollar gövdeyle birlikte hareket edebilir", flush=True)
-for v, c in zip(me.vertices, V):
-    v.co = Vector(c)
-me.update()
+    from mathutils.kdtree import KDTree
+    rng = np.random.default_rng(0)
+    ornek = V[rng.choice(len(V), min(4000, len(V)), replace=False)]
+    sonuc = []
+    for aci in (40, 50, 58, 66, 74, 82):
+        kol_poz(aci)
+        dg = bpy.context.evaluated_depsgraph_get()
+        be = body.evaluated_get(dg)
+        P = [be.matrix_world @ v.co for v in be.data.vertices]
+        kd = KDTree(len(P))
+        for i, q in enumerate(P):
+            kd.insert(q, i)
+        kd.balance()
+        mesafe = float(np.mean([kd.find(Vector(q))[2] for q in ornek]))
+        sonuc.append((mesafe, aci))
+    KOL_ACI = min(sonuc)[1]
+    kol_poz(KOL_ACI)
+    print(f"kollar aşağıda (uzanım {uzan:.2f}): manken kolları {KOL_ACI}° indirildi · uyum {[(a, round(m, 3)) for m, a in sonuc]}", flush=True)
 
 # ---------------------------------------------------------------- ağırlık aktarımı (mankenden)
 dt = ob.modifiers.new("aktar", "DATA_TRANSFER")
@@ -154,6 +193,19 @@ bmesh.ops.delete(bm, geom=sil, context="FACES_ONLY")
 bm.to_mesh(me)
 bm.free()
 print(f"bacak arası kesilen yüz: {len(sil)}", flush=True)
+
+# kollar aşağıdaysa: modeli T-poza aç (mankenin indirilmiş kollarının ters dönüşü, ağırlıklarla)
+if KOL_ACI:
+    kol_poz(-KOL_ACI)   # dinlenme pozuna göre ters açı: aşağıdaki kol T-poza kalkar
+    ac = ob.modifiers.new("ac", "ARMATURE")
+    ac.object = rig
+    # model henüz iskeletin çocuğu değil: dünya koordinatında aynı yerde, iskelet nesnesi dönüşü hesaba katılır
+    bpy.context.view_layer.objects.active = ob
+    bpy.ops.object.modifier_apply(modifier="ac")
+    for pb in KOLLAR:
+        pb.matrix_basis = Matrix.Identity(4)
+    bpy.context.view_layer.update()
+    print("model T-poza açıldı", flush=True)
 
 # malzeme: TripoSR köşe renkleri
 mat = bpy.data.materials.new("karakter_renk")

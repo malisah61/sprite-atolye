@@ -100,7 +100,10 @@ def uret(yol, ad, cikis):
     if komando and len(resimler) > 1:
         oran = [genislik_orani(r) for r in resimler]
         print("en/boy oranları:", [round(o, 2) for o in oran])
-        sec = max(range(len(resimler)), key=lambda i: oran[i])
+        # gerçek T-poz (kollar açık, oran > 0.8) varsa o; yoksa motorun en iyi bulduğu (ilk) aday.
+        # Kollar aşağıdaysa Komando hattı mankenin kollarını indirip modeli T-poza kendisi açar.
+        tp = [i for i in range(len(resimler)) if oran[i] > 0.8]
+        sec = tp[0] if tp else 0
     open(f"{cikis}/gorsel.png", "wb").write(resimler[sec])
     bilgi = {"ad": ad, "tarif": tarif, "secilen": sec + 1, "puan": puan, "gpu_sn": d.get("seconds"),
              "toplam_sn": round(time.time() - t0), "dersler": d.get("dersler"), "hat": s.get("hat", ""),
