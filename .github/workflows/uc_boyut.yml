@@ -33,7 +33,7 @@ jobs:
           git clone --depth 1 https://github.com/VAST-AI-Research/TripoSR.git
           pip install --quiet torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu
           pip install --quiet omegaconf==2.3.0 einops==0.7.0 transformers==4.35.0 trimesh huggingface-hub pillow numpy "rembg==2.0.59" "onnxruntime==1.19.2" scikit-image
-          pip install --quiet git+https://github.com/tatsy/torchmcubes.git
+          pip install --quiet scikit-build-core cmake ninja pybind11 && pip install --quiet --no-build-isolation git+https://github.com/tatsy/torchmcubes.git
       - name: Blender kur
         run: |
           curl -sL https://download.blender.org/release/Blender4.2/blender-4.2.3-linux-x64.tar.xz | tar -xJ -C /opt
