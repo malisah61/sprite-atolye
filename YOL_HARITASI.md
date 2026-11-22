@@ -22,7 +22,7 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - Açık sorun (21 Kasım): çizgi film kadın tarifinde ara ara karakter sayfası (aynı kişi 3 açıdan). Öneri: temizlikten sonra birden fazla büyük figür varsa otomatik yeniden üret / en büyük figürü al. Motorsuz (site) de yapılabilir.
 - Bilinen eski sorun: test_motor'daki boyayarak düzenleme testinde (üst %25 maske) kafa siliniyor — eski modelde de vardı; maske/temizlik ayarına bakılacak.
 - ✅ c) İki aşamalı üretim (hi-res fix) — 22 Kasım gece: motorda `"hires": true` (1.5x büyüt, uzun kenar en fazla 1536, img2img 0.35, 30×0.35≈11 adım; pixel ve dikişsiz dokuda kapalı). Sitede "Ekstra kalite" kutusu (varsayılan AÇIK; HD / çizgi film / karanlık). Ölçüm (T4, 832×1216 HD aslan): kapalı 23,7 sn → açık 42 sn, ek ~18 sn ≈ **0,003 $/görsel**. Sonuç: yüz/göz ve zırh detayı belirgin daha net, kompozisyon aynı. `uret.yml`'ye `ekstra` girdisi.
-  - Yan bulgu: temizlik baltayı ve eli siliyordu → arka plan silme BiRefNet-lite'a geçti (bkz. DERSLER.md); GPU'suz hata ayıklama için `temizlik_dene.yml`.
+  - Yan bulgu: temizlik baltayı ve eli siliyordu → arka plan silme BiRefNet-lite'a geçti (bkz. DERSLER.md); GPU'suz hata ayıklama için `temizlik_dene.yml`. Canlı test: balta + el artık korunuyor; BiRefNet CPU'da görsel başına ~10-14 sn ekliyor (motor cpu=4). Not: test_motor'daki boyama testinde kafa silinmesi sürüyor (eski sorun).
 - ⬜ d) Yüz düzeltme
 - ⬜ e) "En iyisini seç" (estetik/CLIP puanı)
 
