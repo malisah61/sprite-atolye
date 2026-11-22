@@ -21,7 +21,8 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
   - Sonraki adım: deneme motoruna (karsilastir.yml benzeri) LoRA'ları ekleyip stil başına örnek üret, bak, ağırlık seç.
 - Açık sorun (21 Kasım): çizgi film kadın tarifinde ara ara karakter sayfası (aynı kişi 3 açıdan). Öneri: temizlikten sonra birden fazla büyük figür varsa otomatik yeniden üret / en büyük figürü al. Motorsuz (site) de yapılabilir.
 - Bilinen eski sorun: test_motor'daki boyayarak düzenleme testinde (üst %25 maske) kafa siliniyor — eski modelde de vardı; maske/temizlik ayarına bakılacak.
-- ⬜ c) İki aşamalı üretim (hi-res fix) + sitede "Ekstra kalite"
+- ✅ c) İki aşamalı üretim (hi-res fix) — 22 Kasım gece: motorda `"hires": true` (1.5x büyüt, uzun kenar en fazla 1536, img2img 0.35, 30×0.35≈11 adım; pixel ve dikişsiz dokuda kapalı). Sitede "Ekstra kalite" kutusu (varsayılan AÇIK; HD / çizgi film / karanlık). Ölçüm (T4, 832×1216 HD aslan): kapalı 23,7 sn → açık 42 sn, ek ~18 sn ≈ **0,003 $/görsel**. Sonuç: yüz/göz ve zırh detayı belirgin daha net, kompozisyon aynı. `uret.yml`'ye `ekstra` girdisi.
+  - Yan bulgu: temizlik baltayı ve eli siliyordu → arka plan silme BiRefNet-lite'a geçti (bkz. DERSLER.md); GPU'suz hata ayıklama için `temizlik_dene.yml`.
 - ⬜ d) Yüz düzeltme
 - ⬜ e) "En iyisini seç" (estetik/CLIP puanı)
 
@@ -47,6 +48,7 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - kararli-v4: 2026-11-20 (DreamShaper'a geçiş öncesi)
 - kararli-v5: 2026-11-21 (stil LoRA'ları öncesi)
 - kararli-v6: 2026-11-22 (ders sistemi öncesi)
+- kararli-v7: 2026-11-22 gece (hi-res fix + BiRefNet öncesi)
 
 ## Gece günlüğü
 - 2026-11-20: 0a başladı — karşılaştırma iş akışı eklendi; DreamShaper deneme motoru açılmadı (3/3 deneme hakkı kullanıldı), canlı motor değişmedi.
@@ -56,9 +58,12 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 
 - 2026-11-22 (gündüz, kullanıcıyla): Hamelinli Kavalcı denemeleri (4 üretim); uret.yml'ye referans girdisi; **ders sistemi** (DERSLER.md + motorda otomatik kurallar + pixel'de taslak→referans).
 
+- 2026-11-22 (gece): 0c — hi-res fix (motor + site), BiRefNet-lite temizlik, yerel arka planla delik doldurma, temizlik_dene.yml.
+
 ## Tahmini Modal harcaması (Kasım 2026)
 - 19-20 Kasım: ~17 motor kurulumu + ~8 üretim + 3 karşılaştırma denemesi → tahmini 2-4 $ (20 $ sınırının çok altında).
 - 20 Kasım akşamı (gündüz oturumu): ~4 kurulum+test daha → +~1 $
 - 21 Kasım: 1 LoRA karşılaştırması + 1 kurulum/test → +~0.5 $. Ay toplamı tahmini 4-6 $.
 - 21 Kasım sabah: Modal panelinde gerçek kullanım **3 $ / 30 $** (kullanıcının ekran görüntüsü). Video denemesi +~0,35 $.
 - 22 Kasım: kavalcı üretimleri (4 iş) + 1 kurulum/test → +~0,5 $.
+- 22 Kasım gece: 2 kurulum/test + 1 üretim → +~0,4 $. Ay toplamı tahmini ~5-6 $ (20 $ sınırının altında).
