@@ -182,6 +182,12 @@ function loraFor(stil) {
   const k = document.getElementById('loraAc');
   return (!k || k.checked) ? LORA_STIL[stil] : undefined;
 }
+// İki aşamalı üretim (hi-res fix): Modal motorunda 1.5x büyütüp ince detayları yeniden çizer (pixel'de kapalı)
+const HIRES_STIL = ['hd', 'cartoon', 'dark'];
+function hiresFor(stil) {
+  const k = document.getElementById('hiresAc');
+  return !!(k && k.checked && HIRES_STIL.includes(stil));
+}
 const BAKIS = {
   front: 'front view facing the camera',
   side: 'side view profile facing right',
@@ -371,7 +377,7 @@ const ENGINES = {
           headers: { 'Content-Type': 'application/json', 'X-Sprite-Key': key },
           body: JSON.stringify({ prompt, seed, n: 1, width: w, height: h, auto: seffaf, style: stil === 'pixel' ? 'pixel' : 'other', negative: negatif || undefined,
             reference: ref || undefined, ref_scale: refScale, tileable: tile,
-            parts: parts || undefined, base, absent: absent || undefined, style_text: styleText, lora: loraFor(stil) }),
+            parts: parts || undefined, base, absent: absent || undefined, style_text: styleText, lora: loraFor(stil), hires: hiresFor(stil) || undefined }),
         });
         if (r.status === 401) throw new Error('Motor anahtarı yanlış');
         if (!r.ok) throw new Error('Modal hatası ' + r.status);
@@ -382,6 +388,7 @@ const ENGINES = {
         c._fixes = (d.fixes && d.fixes[0]) || null;
         c._dersler = d.dersler || [];
         c._ikiAsama = !!d.iki_asama;
+        c._hires = !!d.hires;
         return c;
       } finally { clearTimeout(to); }
     },
@@ -390,8 +397,9 @@ const ENGINES = {
 const PARCA_TR = { 'bütün': 'görsel', head: 'kafa', face: 'yüz', wings: 'kanat', wing: 'kanat', tail: 'kuyruk', arms: 'kollar', arm: 'kol', legs: 'bacaklar', body: 'gövde', horns: 'boynuz', hands: 'eller' };
 function dersOzeti(c) {
   // motorun geçmiş hatalardan öğrendiği kurallar (modal/app.py DERSLER)
-  if (!c || !c._dersler || !c._dersler.length) return '';
-  return ' · dersler: ' + c._dersler.join(', ') + (c._ikiAsama ? ' (taslak→pixel)' : '');
+  const ek = c && c._hires ? ' · ekstra kalite ✓' : '';
+  if (!c || !c._dersler || !c._dersler.length) return ek;
+  return ek + ' · dersler: ' + c._dersler.join(', ') + (c._ikiAsama ? ' (taslak→pixel)' : '');
 }
 function duzeltmeOzeti(f) {
   if (!f || !f.length) return '';
@@ -611,6 +619,10 @@ $('#seffaf').checked = localStorage.getItem('sa-seffaf') !== '0';
 try {
   $('#loraAc').checked = localStorage.getItem('sa-lora') !== '0';
   $('#loraAc').addEventListener('change', () => { try { localStorage.setItem('sa-lora', $('#loraAc').checked ? '1' : '0'); } catch (e) { /* yok */ } });
+} catch (e) { /* kutu yoksa */ }
+try {
+  $('#hiresAc').checked = localStorage.getItem('sa-hires') !== '0';
+  $('#hiresAc').addEventListener('change', () => { try { localStorage.setItem('sa-hires', $('#hiresAc').checked ? '1' : '0'); } catch (e) { /* yok */ } });
 } catch (e) { /* kutu yoksa */ }
 
 /* ---------------- Atölye ---------------- */

@@ -26,6 +26,18 @@ adimlar["1b_rembg_islemsiz"] = remove(im, session=rb)
 adimlar["2_delik_doldur"] = out = fill_holes(rgb, raw, bg)
 adimlar["3_kenar_temizle"] = d = defringe(out, bg=bg)
 adimlar["4_kirinti_sil"] = drop_debris(d)
+import time
+for model in ["birefnet-general", "birefnet-general-lite"]:
+    try:
+        t = time.time()
+        ses = new_session(model)
+        t1 = time.time()
+        r = remove(im, session=ses, post_process_mask=True)
+        print(f"{model}: yükleme {t1 - t:.1f} sn, kesim {time.time() - t1:.1f} sn (CPU)")
+        adimlar[f"5_{model}"] = r
+        adimlar[f"5_{model}_temiz"] = drop_debris(defringe(fill_holes(rgb, r, bg), bg=bg))
+    except Exception as e:  # noqa
+        print(f"{model} olmadı: {e}")
 alan = lambda x: int((np.array(x)[..., 3] > 0).sum())
 for ad, x in adimlar.items():
     x.save(f"{cikis}/{ad}.png")
