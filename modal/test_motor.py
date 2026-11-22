@@ -117,7 +117,23 @@ def dersler():
     yaz(f"Dersler: {d.get('dersler')} · taslak→pixel: {d.get('iki_asama')} · GPU {d['seconds']} sn")
 
 
+def hires():
+    # İki aşamalı üretim (hi-res fix): aynı tarif + seed, kapalı ve açık → süre farkı = ek maliyet
+    b = {"prompt": "lion man warrior, muscular anthropomorphic lion with golden mane, leather armor, holding a battle axe, solo, one single character alone, full body 2D game character, high quality 2D game art, hand painted, detailed shading, front view, isolated on a plain flat solid medium gray background",
+         "seed": 42, "n": 1, "width": 832, "height": 1216, "style": "other", "auto": True}
+    d0, _ = post("/generate", b)
+    kaydet("hires_kapali", d0["images"][0])
+    d1, _ = post("/generate", {**b, "hires": True})
+    kaydet("hires_acik", d1["images"][0])
+    assert d1.get("hires"), "hires uygulanmadı"
+    from PIL import Image
+    w0 = Image.open(io.BytesIO(base64.b64decode(d0["images"][0]))).size
+    w1 = Image.open(io.BytesIO(base64.b64decode(d1["images"][0]))).size
+    yaz(f"Ekstra kalite (hi-res): kapalı {w0} GPU {d0['seconds']} sn · açık {w1} GPU {d1['seconds']} sn (büyütme {d1.get('hires_seconds')} sn)")
+
+
 dene("doku", doku)
+dene("ekstra kalite", hires)
 dene("dersler", dersler)
 dene("stil LoRA", lora_cizgi)
 dene("karışık yaratık", karisik)

@@ -16,6 +16,7 @@ Uç nokta (POST /generate):
            "tileable": bool     → dikişsiz doku
            "parts": [{"name":"head","want":"monkey head..."}], "base": "snake" → otomatik parça kontrolü ve düzeltme
            "lora": "cartoon"|"chibi"|"dark", "lora_weight": 0-2 → stile özel LoRA (tetik kelimesi otomatik eklenir)
+           "hires": bool → iki aşamalı üretim (hi-res fix): 1.5x büyüt + img2img (0.35), pixel/doku hariç; cevapta "hires"
            "dersler": bool (varsayılan true) → DERSLER kuralları; "iki_asama": bool → pixel'de taslak+referans
            cevapta "dersler": [uygulanan ders adları], "iki_asama": taslak kullanıldı mı
 POST /edit   {"image", "prompt", "strength", "mask"?, "reference"?} → metinle düzenleme / boyayarak (inpaint)
@@ -636,8 +637,32 @@ class Motor:
             log.append({"parca": "bütün", "durum": "cilalandı"})
         return im, log
 
+    def _hires(self, out, prompt, negative, seed, ipa, oran=1.5, strength=0.35, uzun=1536):
+        """İki aşamalı üretim (hi-res fix): görseli büyütüp hafif img2img ile ince detayları yeniden çizer.
+        Uzun kenar en fazla 1536 (T4 belleği); sadece pixel olmayan stillerde (pixel ızgarası bulanıklaşır)."""
+        import torch
+        from PIL import Image
+
+        yeni = []
+        self.pipe.enable_vae_tiling()  # 1536'da VAE çözme belleği taşmasın
+        try:
+            for k, im in enumerate(out):
+                s = min(oran, uzun / max(im.size))
+                if s <= 1.05:
+                    yeni.append(im); continue
+                W, H = max(64, round(im.width * s / 64) * 64), max(64, round(im.height * s / 64) * 64)
+                big = im.convert("RGB").resize((W, H), Image.LANCZOS)
+                g = torch.Generator("cuda").manual_seed(seed + 500 + k)
+                yeni.append(self.i2i(prompt=prompt, negative_prompt=negative, image=big, strength=strength,
+                                     num_inference_steps=30, guidance_scale=6.0, generator=g,
+                                     ip_adapter_image=ipa).images[0])
+                torch.cuda.empty_cache()
+        finally:
+            self.pipe.disable_vae_tiling()
+        return yeni
+
     def _run(self, prompt, negative, seed, n, width, height, style, transparent=False, auto=False, native=False,
-             ref_img=None, ref_scale=0.6, tileable=False, parts=None, base="", style_text="", absent=None):
+             ref_img=None, ref_scale=0.6, tileable=False, parts=None, base="", style_text="", absent=None, hires=False):
         import base64
         import io
         import time
@@ -693,8 +718,17 @@ class Motor:
                     log.append({"hata": str(e)[:200]})
                 yeni.append(im); fixes.append(log)
             out = yeni
+        hires = bool(hires) and style != "pixel" and not tileable
+        t1 = time.time()
+        if hires:
+            out = self._hires(out, prompt, negative, seed, ipa)
+        hs = round(time.time() - t1, 2)
         imgs, grids, plains = self._post(out, transparent, auto, style, native)
-        return {"images": imgs, "grid": grids, "plain": plains, "fixes": fixes, "seconds": round(time.time() - t0, 2)}
+        r = {"images": imgs, "grid": grids, "plain": plains, "fixes": fixes, "seconds": round(time.time() - t0, 2)}
+        if hires:
+            r["hires"] = True
+            r["hires_seconds"] = hs  # sadece büyütme + yeniden çizim süresi
+        return r
 
     @modal.asgi_app()
     def web(self):
@@ -716,7 +750,7 @@ class Motor:
         def health():
             return {"ok": True, "motor": "sdxl+pixel-art-xl+ip-adapter", "model": BASE, "gpu": "T4",
                     "loralar": list(getattr(self, "loras", {})),
-                    "ozellikler": ["generate", "reference", "tileable", "edit", "inpaint", "rembg"]}
+                    "ozellikler": ["generate", "reference", "tileable", "edit", "inpaint", "rembg", "hires"]}
 
         @api.post("/generate")
         def generate(body: dict, x_sprite_key: str = Header(default="")):
@@ -767,7 +801,7 @@ class Motor:
                 finally:
                     self._lora = lora_once
             r = self._run(prompt, negative, seed, n, width, height, style, transparent, auto, native,
-                          ref_img, ref_scale, tileable, parts, base, style_text, absent)
+                          ref_img, ref_scale, tileable, parts, base, style_text, absent, bool(body.get("hires", False)))
             r["dersler"] = dersler
             r["iki_asama"] = taslak
             return r
