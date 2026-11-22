@@ -23,7 +23,9 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - Bilinen eski sorun: test_motor'daki boyayarak düzenleme testinde (üst %25 maske) kafa siliniyor — eski modelde de vardı; maske/temizlik ayarına bakılacak.
 - ✅ c) İki aşamalı üretim (hi-res fix) — 22 Kasım gece: motorda `"hires": true` (1.5x büyüt, uzun kenar en fazla 1536, img2img 0.35, 30×0.35≈11 adım; pixel ve dikişsiz dokuda kapalı). Sitede "Ekstra kalite" kutusu (varsayılan AÇIK; HD / çizgi film / karanlık). Ölçüm (T4, 832×1216 HD aslan): kapalı 23,7 sn → açık 42 sn, ek ~18 sn ≈ **0,003 $/görsel**. Sonuç: yüz/göz ve zırh detayı belirgin daha net, kompozisyon aynı. `uret.yml`'ye `ekstra` girdisi.
   - Yan bulgu: temizlik baltayı ve eli siliyordu → arka plan silme BiRefNet-lite'a geçti (bkz. DERSLER.md); GPU'suz hata ayıklama için `temizlik_dene.yml`. Canlı test: balta + el artık korunuyor; BiRefNet CPU'da görsel başına ~10-14 sn ekliyor (motor cpu=4). Not: test_motor'daki boyama testinde kafa silinmesi sürüyor (eski sorun).
-- ⬜ d) Yüz düzeltme
+- ✅ d) Yüz düzeltme — 23 Kasım gece: motorda `"yuz": true` → CLIPSeg "face" haritasında en güçlü bölge bulunur, 2.2x çevresi kare kırpılıp 1024'e büyütülür, img2img 0.4 ile ("detailed face, clear expressive eyes...") yeniden çizilir, yumuşak maske + kenara doğru sönen pencereyle geri yapıştırılır. Hi-res'ten sonra çalışır; pixel, doku ve arkadan görünüşte kapalı; yüz zaten büyükse (kırpıntı ≥ 820 px) atlanır. Sitede "Yüz düzeltme" kutusu (karakter/düşman, varsayılan AÇIK); `uret.yml`'ye `yuz` girdisi.
+  - Test (`test_motor` → yüz düzeltme): çizgi film kadında **iki gözün farklı renk/biçimde çizilmesi düzeldi** (simetrik, aynı renk iris); HD Alman nöbetçide göz/yüz hatları biraz daha net, dikiş yok (hafif daha doygun ten). Ek süre ~5-8 sn/görsel ≈ 0,001 $.
+  - Yan düzeltme: sitede "tüfekli asker", "kılıçlı şövalye" gibi tarifler artık eşya değil karakter sayılıyor (otomatik tür).
 - ✅ e) "En iyisini seç" — 22 Kasım gece (kullanıcı isteğiyle öne alındı): motor her görsele "puan" (CLIP tarif uyumu + varsa ders kontrolü) veriyor, n>1'de en iyisini başa alıyor; sitede aynı üretimin adayları bitince puana göre sıralanıyor, en iyisi "⭐ en iyi" ve sarı çerçeveyle işaretleniyor, her kartta "uyum %". Ayrıca "tek silah" dersi (bkz. DERSLER.md). Canlı test (aslan, seed 42): taslak puanları [1.0, 0.5, 0.5, 0.0] → kılıçsız taslak seçildi, fazladan kılıç yok, balta sağlam; boş kalan ele model kalkan koydu (anatomik hata değil). Bedel: taslak seçimi görsel başına ~+45 sn T4 (≈0,007 $), sadece silahlı karakter tariflerinde.
 
 ## V. 🔄 Video / hareketli çizgi film (kullanıcı isteği, 21 Kasım)
@@ -66,6 +68,7 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - kararli-v6: 2026-11-22 (ders sistemi öncesi)
 - kararli-v7: 2026-11-22 gece (hi-res fix + BiRefNet öncesi)
 - kararli-v8: 2026-11-22 gece (tek silah + en iyisini seç öncesi)
+- kararli-v9: 2026-11-23 gece (yüz düzeltme öncesi)
 
 ## Gece günlüğü
 - 2026-11-20: 0a başladı — karşılaştırma iş akışı eklendi; DreamShaper deneme motoru açılmadı (3/3 deneme hakkı kullanıldı), canlı motor değişmedi.
@@ -79,6 +82,8 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 
 - 2026-11-22 (gece, kullanıcı isteği): tek silah dersi (tutuş tarifi + CLIP taslak seçimi) + 0e en iyisini seç.
 
+- 2026-11-23 (gece): 0d — yüz düzeltme (motor + site + test), Komando için komando portreleri (Reilly, Blake).
+
 ## Tahmini Modal harcaması (Kasım 2026)
 - 19-20 Kasım: ~17 motor kurulumu + ~8 üretim + 3 karşılaştırma denemesi → tahmini 2-4 $ (20 $ sınırının çok altında).
 - 20 Kasım akşamı (gündüz oturumu): ~4 kurulum+test daha → +~1 $
@@ -86,3 +91,4 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - 21 Kasım sabah: Modal panelinde gerçek kullanım **3 $ / 30 $** (kullanıcının ekran görüntüsü). Video denemesi +~0,35 $.
 - 22 Kasım: kavalcı üretimleri (4 iş) + 1 kurulum/test → +~0,5 $.
 - 22 Kasım gece: 2 kurulum/test + 1 üretim → +~0,4 $. Kullanıcı isteğiyle +2 kurulum/test (tek silah) → +~0,4 $. Ay toplamı tahmini ~5-6 $ (20 $ sınırının altında).
+- 23 Kasım gece: 1 kurulum/test (~17 dk) + 2 portre üretimi → +~0,25 $. Ay toplamı tahmini ~6-7 $ (20 $ sınırının altında).
