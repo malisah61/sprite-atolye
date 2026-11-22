@@ -119,6 +119,22 @@ sig = 0.035 * H
 W = np.exp(-((D - D.min(1, keepdims=True)) / sig) ** 2)
 W[D > 1e8] = 0
 W /= W.sum(1, keepdims=True)
+# etek/bel bandı: uyluk ağırlığı yukarı doğru azalıp kalçaya geçer (bacaklar arasında perde gerilmesin)
+j_kalca = adlar.index("kalca")
+bant = np.clip((V[:, 2] - 0.36 * H) / (0.14 * H), 0, 1)
+for j, a in enumerate(adlar):
+    if a.startswith(("uyluk", "baldir")):
+        aktar = W[:, j] * bant
+        W[:, j] -= aktar
+        W[:, j_kalca] += aktar
+# kollar: gövdeye yapışık iç kısım kola bağlanmasın (kürek gibi esneme olmasın) → gövdeye aktar
+j_govde = adlar.index("govde")
+for j, a in enumerate(adlar):
+    if a.startswith(("pazu", "onkol")):
+        kx = kol_l if a.endswith(".L") else kol_r
+        ic = np.abs(V[:, 0] - cx) < 0.65 * abs(kx - cx)
+        W[ic, j_govde] += W[ic, j]
+        W[ic, j] = 0
 for j, a in enumerate(adlar):
     g = ob.vertex_groups.new(name=a)
     for i in np.nonzero(W[:, j] > 0.02)[0]:
