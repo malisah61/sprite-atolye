@@ -24,7 +24,7 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - ✅ c) İki aşamalı üretim (hi-res fix) — 22 Kasım gece: motorda `"hires": true` (1.5x büyüt, uzun kenar en fazla 1536, img2img 0.35, 30×0.35≈11 adım; pixel ve dikişsiz dokuda kapalı). Sitede "Ekstra kalite" kutusu (varsayılan AÇIK; HD / çizgi film / karanlık). Ölçüm (T4, 832×1216 HD aslan): kapalı 23,7 sn → açık 42 sn, ek ~18 sn ≈ **0,003 $/görsel**. Sonuç: yüz/göz ve zırh detayı belirgin daha net, kompozisyon aynı. `uret.yml`'ye `ekstra` girdisi.
   - Yan bulgu: temizlik baltayı ve eli siliyordu → arka plan silme BiRefNet-lite'a geçti (bkz. DERSLER.md); GPU'suz hata ayıklama için `temizlik_dene.yml`. Canlı test: balta + el artık korunuyor; BiRefNet CPU'da görsel başına ~10-14 sn ekliyor (motor cpu=4). Not: test_motor'daki boyama testinde kafa silinmesi sürüyor (eski sorun).
 - ⬜ d) Yüz düzeltme
-- ✅ e) "En iyisini seç" — 22 Kasım gece (kullanıcı isteğiyle öne alındı): motor her görsele "puan" (CLIP tarif uyumu + varsa ders kontrolü) veriyor, n>1'de en iyisini başa alıyor; sitede aynı üretimin adayları bitince puana göre sıralanıyor, en iyisi "⭐ en iyi" ve sarı çerçeveyle işaretleniyor, her kartta "uyum %". Ayrıca "tek silah" dersi (bkz. DERSLER.md).
+- ✅ e) "En iyisini seç" — 22 Kasım gece (kullanıcı isteğiyle öne alındı): motor her görsele "puan" (CLIP tarif uyumu + varsa ders kontrolü) veriyor, n>1'de en iyisini başa alıyor; sitede aynı üretimin adayları bitince puana göre sıralanıyor, en iyisi "⭐ en iyi" ve sarı çerçeveyle işaretleniyor, her kartta "uyum %". Ayrıca "tek silah" dersi (bkz. DERSLER.md). Canlı test (aslan, seed 42): taslak puanları [1.0, 0.5, 0.5, 0.0] → kılıçsız taslak seçildi, fazladan kılıç yok, balta sağlam; boş kalan ele model kalkan koydu (anatomik hata değil). Bedel: taslak seçimi görsel başına ~+45 sn T4 (≈0,007 $), sadece silahlı karakter tariflerinde.
 
 ## V. 🔄 Video / hareketli çizgi film (kullanıcı isteği, 21 Kasım)
 - Model: **Wan 2.2 TI2V-5B** (Apache-2.0, ücretsiz, ticari kullanım serbest), ayrı uygulama `sprite-atolye-video` (L4, max 1 GPU, 60 sn'de kapanır). Deneme: `video_dene.yml`.
@@ -69,4 +69,4 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - 21 Kasım: 1 LoRA karşılaştırması + 1 kurulum/test → +~0.5 $. Ay toplamı tahmini 4-6 $.
 - 21 Kasım sabah: Modal panelinde gerçek kullanım **3 $ / 30 $** (kullanıcının ekran görüntüsü). Video denemesi +~0,35 $.
 - 22 Kasım: kavalcı üretimleri (4 iş) + 1 kurulum/test → +~0,5 $.
-- 22 Kasım gece: 2 kurulum/test + 1 üretim → +~0,4 $. Ay toplamı tahmini ~5-6 $ (20 $ sınırının altında).
+- 22 Kasım gece: 2 kurulum/test + 1 üretim → +~0,4 $. Kullanıcı isteğiyle +2 kurulum/test (tek silah) → +~0,4 $. Ay toplamı tahmini ~5-6 $ (20 $ sınırının altında).
