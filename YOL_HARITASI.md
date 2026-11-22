@@ -38,8 +38,12 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 ## 1. ⬜ Sipariş sistemi (siparis.yml, AJAN_TOKEN gerekli)
 ## 2. ⬜ Yapay zekâ ile gerçek animasyon (OpenPose ControlNet + IP-Adapter, /animate)
 ## 3. ⬜ Tileset (Wang/blob geçişleri, Godot .tres)
-## 4. ⬜ Yön seti iyileştirme (arkadan görünüş, 4/8 yön)
-## 5. ⬜ Görselden 3D model (.glb)
+## 4. 🔄 Yön seti iyileştirme (arkadan görünüş, 4/8 yön) — Blender yolu (kullanıcı isteği, 22 Kasım akşam)
+- `uc_boyut.yml` (GPU'suz, GitHub Actions, ~9 dk): görsel → **TripoSR** (MIT) ile 3D (.glb/.ply, CPU'da ~1 dk) → **Blender 4.2 LTS** (GPL; çıktılar serbest) ile 4/8 yönden şeffaf render → isteğe bağlı **motorla yeniden boyama** (render = şekil iskeleti, /edit güç 0.55; orijinal = IP-Adapter referansı 0.5).
+- İlk sonuç (çizgi film kadın): ham 3D render bulanık (yüz silik) ama yönler tutarlı; **boyanmış hali çok iyi** — gerçek arkadan görünüş, kıyafet/saç/çizme her yönde aynı. Kusur: yan/arka görünüşte orijinalde olmayan bir sırt çantası eklendi (omuz kayışından). Maliyet: 4 yön boyama ≈ 130 sn GPU ≈ 0,02 $.
+- TripoSR ekseni: model z-yukarı, ön yüz +x → Blender'da ön açı 270.
+- Sırada: sitedeki "Yön seti"ne "3D ile (Blender)" seçeneği (motorda Blender/TripoSR uç noktası ya da Actions tetikleme), 8 yön, sprite sheet çıktısı; sonra .glb indirme (madde 5).
+## 5. 🔄 Görselden 3D model (.glb) — TripoSR denemesi `uc_boyut.yml` ile çalışıyor (model.glb çıktı); kalite düşük, iyileştirme adayı: TRELLIS (MIT)
 ## 6. ⬜ Ses efekti (.wav, "Ses" sekmesi)
 ## 7. ⬜ Sonrası: stil LoRA eğitimi, UI kit, kart çerçevesi nadirlik setleri
 
