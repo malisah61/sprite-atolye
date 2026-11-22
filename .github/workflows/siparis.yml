@@ -23,6 +23,9 @@ on:
       hizli:
         description: 'Hızlı deneme (Komando hattında sadece idle/walk/death, düşük örnekleme)'
         default: 'false'
+      onceki:
+        description: 'İsteğe bağlı: önceki sipariş klasörü (deneme-sonuclari, örn. siparis/komando/20261122-211143) — görseller yeniden üretilmez'
+        default: ''
 
 permissions:
   contents: write
@@ -74,6 +77,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Önceki görseller (isteğe bağlı)
+        if: ${{ inputs.onceki != '' }}
+        env:
+          IN_ONCEKI: ${{ inputs.onceki }}
+        run: |
+          git fetch --depth 1 origin deneme-sonuclari
+          mkdir -p /tmp/onceki && git archive FETCH_HEAD "$IN_ONCEKI" | tar -x -C /tmp/onceki
+          echo "ONCEKI_DIR=/tmp/onceki/$IN_ONCEKI" >> $GITHUB_ENV
       - name: Görsel üret (motor)
         id: g
         env:

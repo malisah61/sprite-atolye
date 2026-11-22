@@ -90,7 +90,13 @@ def uret(yol, ad, cikis):
     if stil in LORA:
         govde["lora"] = LORA[stil]
     t0 = time.time()
-    d = istek("/generate", govde)
+    onceki = os.environ.get("ONCEKI_DIR", "")
+    if onceki and os.path.exists(f"{onceki}/{ad}/gorsel.png"):
+        # önceki siparişin görselini yeniden kullan (motor harcaması yok; sadece 3D/render tekrarı)
+        print(f"önceki görsel kullanılıyor: {onceki}/{ad}/gorsel.png")
+        d = {"images": [base64.b64encode(open(f"{onceki}/{ad}/gorsel.png", "rb").read()).decode()], "seconds": 0}
+    else:
+        d = istek("/generate", govde)
     resimler = [base64.b64decode(x) for x in d["images"]]
     puan = d.get("puan") or [None] * len(resimler)
     for k, r in enumerate(resimler):
