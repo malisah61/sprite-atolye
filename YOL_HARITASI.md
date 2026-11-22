@@ -43,6 +43,12 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - İlk sonuç (çizgi film kadın): ham 3D render bulanık (yüz silik) ama yönler tutarlı; **boyanmış hali çok iyi** — gerçek arkadan görünüş, kıyafet/saç/çizme her yönde aynı. Kusur: yan/arka görünüşte orijinalde olmayan bir sırt çantası eklendi (omuz kayışından). Maliyet: 4 yön boyama ≈ 130 sn GPU ≈ 0,02 $.
 - TripoSR ekseni: model z-yukarı, ön yüz +x → Blender'da ön açı 270.
 - Sırada: sitedeki "Yön seti"ne "3D ile (Blender)" seçeneği (motorda Blender/TripoSR uç noktası ya da Actions tetikleme), 8 yön, sprite sheet çıktısı; sonra .glb indirme (madde 5).
+## 2b. 🔄 3D iskeletle animasyon (kullanıcı isteği, 22 Kasım akşam — "Komando askerleri gibi")
+- `uc_boyut.yml` girdisi `anim=yuru,kos`: TripoSR modeli → `blender_anim.py` otomatik iskelet (boy/bacak/kol kesitlerden ölçülür, ağırlıklar kemiğe uzaklıkla, sol/sağ ayrımı) → kodla yürüme/koşma döngüsü → 8 yön × 8 kare, Commandos açısı (35°), 256 px, sprite sayfası + GIF. GPU'suz, ~6 dk.
+- İlk sonuç (çizgi film kadın): yürüme ve koşma 8 yönde tutarlı, yandan adım net. Düzeltmeler: ön yön açısı; bacaklar/kollar arası gerilen yüzler kesildi (perde gitti). Kalan kusurlar: kollar yassı, bazı karelerde küçük delikler (içerisi görünüyor), yüz bulanık (TripoSR).
+- Komando'nun kendi hattı (elle model + Quaternius CC0 animasyonlar) ayrı; bu, atölyede üretilen HER karakter için.
+- Sırada: çömelme, sürünme, ateş, ölme; küçültme + pixel modu (64-128 px); karelerin motorla tutarlı boyanması (titremesiz) denemesi; sitedeki Animasyon sekmesine "3D ile" seçeneği.
+
 ## 5. 🔄 Görselden 3D model (.glb) — TripoSR denemesi `uc_boyut.yml` ile çalışıyor (model.glb çıktı); kalite düşük, iyileştirme adayı: TRELLIS (MIT)
 ## 6. ⬜ Ses efekti (.wav, "Ses" sekmesi)
 ## 7. ⬜ Sonrası: stil LoRA eğitimi, UI kit, kart çerçevesi nadirlik setleri
