@@ -24,7 +24,7 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - ✅ c) İki aşamalı üretim (hi-res fix) — 22 Kasım gece: motorda `"hires": true` (1.5x büyüt, uzun kenar en fazla 1536, img2img 0.35, 30×0.35≈11 adım; pixel ve dikişsiz dokuda kapalı). Sitede "Ekstra kalite" kutusu (varsayılan AÇIK; HD / çizgi film / karanlık). Ölçüm (T4, 832×1216 HD aslan): kapalı 23,7 sn → açık 42 sn, ek ~18 sn ≈ **0,003 $/görsel**. Sonuç: yüz/göz ve zırh detayı belirgin daha net, kompozisyon aynı. `uret.yml`'ye `ekstra` girdisi.
   - Yan bulgu: temizlik baltayı ve eli siliyordu → arka plan silme BiRefNet-lite'a geçti (bkz. DERSLER.md); GPU'suz hata ayıklama için `temizlik_dene.yml`. Canlı test: balta + el artık korunuyor; BiRefNet CPU'da görsel başına ~10-14 sn ekliyor (motor cpu=4). Not: test_motor'daki boyama testinde kafa silinmesi sürüyor (eski sorun).
 - ⬜ d) Yüz düzeltme
-- ⬜ e) "En iyisini seç" (estetik/CLIP puanı)
+- ✅ e) "En iyisini seç" — 22 Kasım gece (kullanıcı isteğiyle öne alındı): motor her görsele "puan" (CLIP tarif uyumu + varsa ders kontrolü) veriyor, n>1'de en iyisini başa alıyor; sitede aynı üretimin adayları bitince puana göre sıralanıyor, en iyisi "⭐ en iyi" ve sarı çerçeveyle işaretleniyor, her kartta "uyum %". Ayrıca "tek silah" dersi (bkz. DERSLER.md).
 
 ## V. 🔄 Video / hareketli çizgi film (kullanıcı isteği, 21 Kasım)
 - Model: **Wan 2.2 TI2V-5B** (Apache-2.0, ücretsiz, ticari kullanım serbest), ayrı uygulama `sprite-atolye-video` (L4, max 1 GPU, 60 sn'de kapanır). Deneme: `video_dene.yml`.
@@ -49,6 +49,7 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - kararli-v5: 2026-11-21 (stil LoRA'ları öncesi)
 - kararli-v6: 2026-11-22 (ders sistemi öncesi)
 - kararli-v7: 2026-11-22 gece (hi-res fix + BiRefNet öncesi)
+- kararli-v8: 2026-11-22 gece (tek silah + en iyisini seç öncesi)
 
 ## Gece günlüğü
 - 2026-11-20: 0a başladı — karşılaştırma iş akışı eklendi; DreamShaper deneme motoru açılmadı (3/3 deneme hakkı kullanıldı), canlı motor değişmedi.
@@ -59,6 +60,8 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - 2026-11-22 (gündüz, kullanıcıyla): Hamelinli Kavalcı denemeleri (4 üretim); uret.yml'ye referans girdisi; **ders sistemi** (DERSLER.md + motorda otomatik kurallar + pixel'de taslak→referans).
 
 - 2026-11-22 (gece): 0c — hi-res fix (motor + site), BiRefNet-lite temizlik, yerel arka planla delik doldurma, temizlik_dene.yml.
+
+- 2026-11-22 (gece, kullanıcı isteği): tek silah dersi (tutuş tarifi + CLIP taslak seçimi) + 0e en iyisini seç.
 
 ## Tahmini Modal harcaması (Kasım 2026)
 - 19-20 Kasım: ~17 motor kurulumu + ~8 üretim + 3 karşılaştırma denemesi → tahmini 2-4 $ (20 $ sınırının çok altında).

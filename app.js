@@ -389,6 +389,7 @@ const ENGINES = {
         c._dersler = d.dersler || [];
         c._ikiAsama = !!d.iki_asama;
         c._hires = !!d.hires;
+        c._puan = (d.puan && typeof d.puan[0] === 'number') ? d.puan[0] : null;
         return c;
       } finally { clearTimeout(to); }
     },
@@ -518,16 +519,38 @@ $('#btnUret').onclick = async () => {
   const ref = REF.b64 && engine === ENGINES.modal ? REF.b64 : null;
   if (REF.b64 && !ref) toast('Referans sadece Modal motorunda çalışır', 3000);
   $('#durum').textContent = `Üretiliyor... Tür: ${TUR_TR[o.tur] || o.tur} · Bakış: ${BAKIS_TR[o.bakis] || o.bakis}${ref ? ' · referanslı' : ''}`;
-  for (let i = 0; i < n; i++) uretimKarti({ desc, en, o, seed: baseSeed + i, model, ref, refScale: REF.scale });
+  const grup = n > 1 ? { kartlar: [], kalan: n } : null;
+  for (let i = 0; i < n; i++) uretimKarti({ desc, en, o, seed: baseSeed + i, model, ref, refScale: REF.scale, grup });
 };
 
+/* En iyisini seç: aynı üretimdeki adaylar bitince motorun tarife uyum puanına göre sırala, en iyisini başa al */
+function grupBitti(grup) {
+  const puanli = grup.kartlar.filter(k => typeof k._puan === 'number');
+  if (puanli.length < 2) return;
+  const kutu = $('#sonuclar');
+  const ilk = grup.kartlar.filter(k => k.parentNode === kutu).sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)[0];
+  if (!ilk) return;
+  const isaret = document.createElement('div');
+  kutu.insertBefore(isaret, ilk);
+  const sirali = grup.kartlar.filter(k => k.parentNode === kutu).sort((a, b) => (b._puan ?? -1) - (a._puan ?? -1));
+  sirali.forEach(k => kutu.insertBefore(k, isaret));
+  isaret.remove();
+  const en = sirali[0];
+  if (en && typeof en._puan === 'number') {
+    en.classList.add('eniyi');
+    en.querySelector('.meta').textContent = '⭐ en iyi · ' + en.querySelector('.meta').textContent;
+  }
+}
+
 /* Tek üretim kartı (Üret ve Yön seti ortak kullanır) */
-function uretimKarti({ desc, en, o, seed, model, ref = null, refScale = 0.6, etiket = '' }) {
+function uretimKarti({ desc, en, o, seed, model, ref = null, refScale = 0.6, etiket = '', grup = null }) {
   const prompt = buildPrompt(en, { ...o, ham: desc });
   const card = document.createElement('div');
   card.className = 'item';
   card.innerHTML = `<div class="img checker"><div class="wait">Sırada...</div></div><div class="meta" title="${escapeHtml(prompt)}">${escapeHtml(etiket ? etiket + ' · ' : '')}${escapeHtml(desc)} · seed ${seed}</div>`;
   $('#sonuclar').prepend(card);
+  if (grup) grup.kartlar.push(card);
+  const grupAzalt = () => { if (grup && --grup.kalan === 0) grupBitti(grup); };
   const w = card.querySelector('.wait');
   enqueue({
     params: { prompt, seed, model, stil: o.stil, negatif: o.negatif, seffaf: o.seffaf, ref, refScale, tile: o.tur === 'tile',
@@ -540,7 +563,8 @@ function uretimKarti({ desc, en, o, seed, model, ref = null, refScale = 0.6, eti
       const view = cloneCanvas(c);
       showScaled(view, 150);
       box.appendChild(view);
-      card.querySelector('.meta').textContent += ` · ${c.width}×${c.height}` + duzeltmeOzeti(c._fixes) + dersOzeti(c);
+      card._puan = c._puan;
+      card.querySelector('.meta').textContent += ` · ${c.width}×${c.height}` + (typeof c._puan === 'number' ? ` · uyum %${Math.round(c._puan * 100)}` : '') + duzeltmeOzeti(c._fixes) + dersOzeti(c);
       const acts = document.createElement('div');
       acts.className = 'acts wrap';
       acts.innerHTML = '<button data-a="at">Atölye</button><button data-a="kay">Kaydet</button><button data-a="in">İndir</button>' +
@@ -552,8 +576,9 @@ function uretimKarti({ desc, en, o, seed, model, ref = null, refScale = 0.6, eti
       const yon = acts.querySelector('[data-a=yon]');
       if (yon) yon.onclick = () => yonSeti(c, { desc, en, o, seed, model });
       card.appendChild(acts);
+      grupAzalt();
     },
-    onError: e => { w.textContent = 'Hata: ' + e.message + ' — tekrar dene'; },
+    onError: e => { w.textContent = 'Hata: ' + e.message + ' — tekrar dene'; grupAzalt(); },
   });
 }
 

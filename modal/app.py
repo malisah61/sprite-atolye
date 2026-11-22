@@ -18,7 +18,8 @@ Uç nokta (POST /generate):
            "lora": "cartoon"|"chibi"|"dark", "lora_weight": 0-2 → stile özel LoRA (tetik kelimesi otomatik eklenir)
            "hires": bool → iki aşamalı üretim (hi-res fix): 1.5x büyüt + img2img (0.35), pixel/doku hariç; cevapta "hires"
            "dersler": bool (varsayılan true) → DERSLER kuralları; "iki_asama": bool → pixel'de taslak+referans
-           cevapta "dersler": [uygulanan ders adları], "iki_asama": taslak kullanıldı mı
+           cevapta "dersler": [uygulanan ders adları], "iki_asama": taslak kullanıldı mı,
+           "puan": [0-1] her görselin tarife uyumu (n>1 ise en iyisi başta)
 POST /edit   {"image", "prompt", "strength", "mask"?, "reference"?} → metinle düzenleme / boyayarak (inpaint)
 POST /rembg  {"image": "<base64>"} → {"image": "<base64 RGBA png>"}
 """
@@ -86,7 +87,37 @@ def dersleri_uygula(prompt, negative):
             ekler += [x.strip() for x in d["negatif"].split(",") if x.strip() and x.strip() not in negative]
             iki = iki or d.get("iki_asama", False)
     ekler = list(dict.fromkeys(ekler))
+    # Ders (22 Kasım gece): "battle axe" istenen aslan adama model fazladan bir kılıç ekledi (bacağın içinden geçen).
+    # Yasaklamak yerine (yasaklanan şeyin yerine başka bir şey çıkıyor) elin ne yapacağını tarife yaz + taslakları
+    # CLIP ile "tek silah" / "fazladan silah" diye puanlayıp temiz olanı seç.
+    dersleri_uygula.ek = ""
+    silahlar = [en for w, en in SILAHLAR if has(w)]
+    silahlar = list(dict.fromkeys(silahlar))
+    silahlar = [x for x in silahlar if not any(x != y and x in y for y in silahlar)]  # "axe" ⊂ "battle axe"
+    karakter = any(has(w) for w in KARAKTER_KELIME) and not any(has(w) for w in ("game item", "game icon", "icon", "item"))
+    cift = any(has(w) for w in ("dual", "two", "both", "pair", "weapons", "arsenal", "twin", "and a sword", "and sword"))
+    if len(silahlar) == 1 and karakter and not cift:
+        w = silahlar[0]
+        if has("shield"):
+            dersleri_uygula.ek = f", holding a single {w} in one hand and the shield in the other hand"
+        elif w in IKI_EL:
+            dersleri_uygula.ek = f", wielding a single {w} with both hands"
+        else:
+            dersleri_uygula.ek = f", holding a single {w}, the other hand empty"
+        dersleri_uygula.kontrol.append((f"a character holding a single {w}", f"a character holding a {w} and a second weapon"))
+        adlar.append("tek silah")
     return (negative + (", " + ", ".join(ekler) if ekler else ""))[:900], adlar, iki
+
+
+# tarif kelimesi → İngilizce silah adı (en uzunlar önce: "battle axe" "axe"den önce)
+SILAHLAR = [("battle axe", "battle axe"), ("war hammer", "war hammer"), ("warhammer", "war hammer"), ("axe", "axe"),
+            ("sword", "sword"), ("katana", "katana"), ("hammer", "hammer"), ("spear", "spear"), ("mace", "mace"),
+            ("halberd", "halberd"), ("bow", "bow"), ("crossbow", "crossbow"), ("dagger", "dagger"), ("rifle", "rifle"),
+            ("shotgun", "shotgun"), ("pistol", "pistol"), ("gun", "gun"), ("club", "club"), ("scythe", "scythe"),
+            ("kılıç", "sword"), ("balta", "axe"), ("mızrak", "spear"), ("hançer", "dagger"), ("tüfek", "rifle")]
+IKI_EL = {"battle axe", "war hammer", "axe", "sword", "katana", "hammer", "spear", "mace", "halberd", "rifle", "shotgun", "club", "scythe"}
+KARAKTER_KELIME = ["character", "enemy", "warrior", "knight", "hero", "soldier", "man", "woman", "boy", "girl", "creature",
+                   "monster", "orc", "goblin", "zombie", "skeleton", "barbarian", "hunter", "holding", "wielding", "player"]
 
 
 def download_models():
@@ -602,6 +633,38 @@ class Motor:
         sonuc.sort(reverse=True)
         return sonuc[0][1], sonuc[0][0], [round(p, 2) for p, _ in sonuc]
 
+    def _sec_kontrol(self, prompt, negative, width, height, seed, ipa, kontrol, aday=4):
+        """Hızlı taslaklar → ders kontrol çiftleriyle (iyi, kötü) CLIP puanı → en iyi seed."""
+        import torch
+
+        sonuc = []
+        for i in range(0, aday, 2):
+            seeds = [seed + 1000 * j for j in range(i, min(aday, i + 2))]
+            ims = self.pipe(prompt=prompt, negative_prompt=negative, num_inference_steps=12, guidance_scale=6.0,
+                            width=width, height=height, num_images_per_prompt=len(seeds),
+                            generator=[torch.Generator("cuda").manual_seed(x) for x in seeds],
+                            ip_adapter_image=ipa).images
+            for x, im in zip(seeds, ims):
+                p = sum(self._clip_pref(im, iyi, kotu) for iyi, kotu in kontrol) / len(kontrol)
+                sonuc.append((p, x))
+        sonuc.sort(reverse=True)
+        return sonuc[0][1], sonuc[0][0], [round(p, 2) for p, _ in sonuc]
+
+    def _puan(self, im, prompt, kontrol=None):
+        """Görselin tarife uyumu 0-1: CLIP metin-görsel benzerliği (+ varsa ders kontrolü). Adayları sıralamak için."""
+        import torch
+
+        with torch.no_grad():
+            inp = self.clip_proc(text=[prompt], images=im.convert("RGB"), return_tensors="pt", padding=True,
+                                 truncation=True, max_length=77).to("cuda")
+            inp["pixel_values"] = inp["pixel_values"].half()
+            cos = self.clip(**inp).logits_per_image.float()[0, 0].item() / 100.0
+        uyum = max(0.0, min(1.0, (cos - 0.15) / 0.2))
+        if kontrol:
+            k = sum(self._clip_pref(im, iyi, kotu) for iyi, kotu in kontrol) / len(kontrol)
+            return 0.5 * uyum + 0.5 * k
+        return uyum
+
     def _fix_parts(self, im, parts, base, style_text, negative, seed, ipa, absent=None, full_prompt=""):
         """Tarifteki parçalar resimde tutmamışsa o bölgeyi bulup yeniden çizer; olmaması gereken parçaları siler. Kayıt döner."""
         import numpy as np
@@ -687,7 +750,8 @@ class Motor:
         return yeni
 
     def _run(self, prompt, negative, seed, n, width, height, style, transparent=False, auto=False, native=False,
-             ref_img=None, ref_scale=0.6, tileable=False, parts=None, base="", style_text="", absent=None, hires=False):
+             ref_img=None, ref_scale=0.6, tileable=False, parts=None, base="", style_text="", absent=None, hires=False,
+             kontrol=None):
         import base64
         import io
         import time
@@ -705,6 +769,14 @@ class Motor:
                 sd, puan, hepsi = self._sec(prompt, negative, width, height, seed + k, ipa, parts, absent, base)
                 seeds.append(sd)
                 secimler.append({"parca": "taslak", "durum": f"4 taslaktan en iyisi seçildi", "skor": round(puan, 2), "adaylar": hepsi})
+            gens = [torch.Generator("cuda").manual_seed(x) for x in seeds]
+        elif kontrol and not tileable:
+            # ders kontrolü (ör. tek silah): 4 hızlı taslak, CLIP ile "iyi" tarife en yakın olanın seed'i
+            seeds = []
+            for k in range(n):
+                sd, puan, hepsi = self._sec_kontrol(prompt, negative, width, height, seed + k, ipa, kontrol)
+                seeds.append(sd)
+                secimler.append({"parca": "taslak", "durum": "4 taslaktan en iyisi seçildi", "skor": round(puan, 2), "adaylar": hepsi})
             gens = [torch.Generator("cuda").manual_seed(x) for x in seeds]
         else:
             gens = [torch.Generator("cuda").manual_seed(seed + i) for i in range(n)]
@@ -743,13 +815,29 @@ class Motor:
                     log.append({"hata": str(e)[:200]})
                 yeni.append(im); fixes.append(log)
             out = yeni
+        elif secimler:
+            fixes = [[x] for x in secimler]
+        # En iyisini seç (0e): her adayı tarife uyum (CLIP) + ders kontrolüyle puanla, en iyisini başa al
+        puanlar = []
+        if not tileable:
+            try:
+                puanlar = [self._puan(im, prompt, kontrol) for im in out]
+                if len(out) > 1:
+                    sira = sorted(range(len(out)), key=lambda k: -puanlar[k])
+                    out = [out[k] for k in sira]
+                    puanlar = [puanlar[k] for k in sira]
+                    if fixes:
+                        fixes = [fixes[k] for k in sira]
+            except Exception as e:  # noqa
+                print("puanlama olmadı:", e, flush=True)
         hires = bool(hires) and style != "pixel" and not tileable
         t1 = time.time()
         if hires:
             out = self._hires(out, prompt, negative, seed, ipa)
         hs = round(time.time() - t1, 2)
         imgs, grids, plains = self._post(out, transparent, auto, style, native)
-        r = {"images": imgs, "grid": grids, "plain": plains, "fixes": fixes, "seconds": round(time.time() - t0, 2)}
+        r = {"images": imgs, "grid": grids, "plain": plains, "fixes": fixes, "puan": [round(x, 3) for x in puanlar],
+             "seconds": round(time.time() - t0, 2)}
         if hires:
             r["hires"] = True
             r["hires_seconds"] = hs  # sadece büyütme + yeniden çizim süresi
@@ -806,6 +894,8 @@ class Motor:
             dersler, iki = [], False
             if body.get("dersler", True) is not False and not tileable:
                 negative, dersler, iki = dersleri_uygula(prompt, negative)
+                prompt = (prompt + getattr(dersleri_uygula, "ek", ""))[:1500]
+            kontrol_listesi = list(getattr(dersleri_uygula, "kontrol", [])) if dersler else []
             taslak = False
             if iki and style == "pixel" and ref_img is None and body.get("iki_asama", True) is not False:
                 # Ders: pixel'de elde tutulan nesneler (kaval, keman, kitap...) bozuluyor → önce detaylı taslak çiz,
@@ -826,7 +916,8 @@ class Motor:
                 finally:
                     self._lora = lora_once
             r = self._run(prompt, negative, seed, n, width, height, style, transparent, auto, native,
-                          ref_img, ref_scale, tileable, parts, base, style_text, absent, bool(body.get("hires", False)))
+                          ref_img, ref_scale, tileable, parts, base, style_text, absent, bool(body.get("hires", False)),
+                          None if taslak else (kontrol_listesi or None))
             r["dersler"] = dersler
             r["iki_asama"] = taslak
             return r

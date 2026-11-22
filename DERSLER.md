@@ -14,9 +14,10 @@ Temizlik hatası şüphesinde: ham görseli `uret.yml` (temizle=false) ile üret
 | 22 Kasım (gece) | Temizlik figürün parçasını arka plan sandı: aslan adamın **gri baltası ve onu tutan eli** silindi (beyaz gömlek sorunuyla aynı aile — 2. kez) | Arka plan silme modeli **isnet → BiRefNet-lite** (MIT). GPU'suz `temizlik_dene.yml` ile aynı görselde balta + el eksiksiz çıktı. Eskiye dönüş: `app.py` → `REMBG_MODEL` |
 | 22 Kasım (gece) | Arka plan vinyetli (ortası açık gri) olunca kol-gövde arasındaki gerçek boşluklar **gri yama** olarak geri geldi | `fill_holes` artık tek renk yerine **yerel arka plan tahmini** ile kıyaslıyor |
 
+| 22 Kasım (gece) | Sadece "battle axe" istenen aslan adama model fazladan bir **kılıç** ekledi (bacağın içinden geçiyor). Kullanıcı uyardı: "kılıç olmaz başka bir şey olur" — yasaklamak yerine çözüm | **Tek silah** dersi (yasak yok): (1) tarife elin ne yaptığı yazılır ("wielding a single battle axe with both hands"; kalkan varsa "kalkan diğer elde"); (2) 4 hızlı taslak CLIP ile "tek silah" / "fazladan silah" diye puanlanıp temiz olan seçilir; (3) birden çok adayda tarife en uyumlu olan başa konur (⭐ en iyi). Sadece karakter tariflerinde, tek bir silah adı geçiyorsa ("dual/two/both" yoksa) |
+
 ## Açık sorunlar (henüz kural yok)
 - Küçük yan figürler (kavalcının faresi) çoğu zaman çizilmiyor.
 - Beyaz gömlek/yaka arka plan sanılıp silinebiliyor — BiRefNet'e geçişle düzelmesi bekleniyor, gözlenecek.
-- HD aslan tarifinde "battle axe" isteniyor; model baltanın yanında bir de kılıç çiziyor (fazladan silah). Tekrar ederse "silah" dersinin negatifine "extra weapon" eklenebilir.
 - Temizlik testlerinde zombinin ayak dibinde küçük gri gölge kalıntısı.
 - Çizgi film stilinde ara ara karakter sayfası (aynı kişi 3 açıdan).

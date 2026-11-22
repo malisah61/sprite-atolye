@@ -48,7 +48,9 @@ def uret():
     for k, im in enumerate(d["images"]):
         kaydet(f"1_{k}", im)
     ana["img"] = d["images"][0]
-    yaz(f"Üretim: {len(d['images'])} görsel, GPU {d['seconds']} sn, toplam {s} sn")
+    pu = d.get("puan") or []
+    assert len(pu) == 2 and pu[0] >= pu[1], f"en iyisini seç çalışmadı: {pu}"
+    yaz(f"Üretim: {len(d['images'])} görsel, GPU {d['seconds']} sn, toplam {s} sn · en iyisi başta, puanlar {pu}")
 
 
 def referans():
@@ -126,6 +128,8 @@ def hires():
     d1, _ = post("/generate", {**b, "hires": True})
     kaydet("hires_acik", d1["images"][0])
     assert d1.get("hires"), "hires uygulanmadı"
+    assert "tek silah" in (d1.get("dersler") or []), f"tek silah dersi uygulanmadı: {d1.get('dersler')}"
+    yaz(f"Tek silah dersi: {d1.get('dersler')} · taslak seçimi {d1.get('fixes')} · puan {d1.get('puan')}")
     from PIL import Image
     w0 = Image.open(io.BytesIO(base64.b64decode(d0["images"][0]))).size
     w1 = Image.open(io.BytesIO(base64.b64decode(d1["images"][0]))).size
