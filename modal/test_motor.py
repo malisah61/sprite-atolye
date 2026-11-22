@@ -136,6 +136,25 @@ def hires():
     yaz(f"Ekstra kalite (hi-res): kapalı {w0} GPU {d0['seconds']} sn · açık {w1} GPU {d1['seconds']} sn (büyütme {d1.get('hires_seconds')} sn)")
 
 
+def yuz():
+    # 0d Yüz düzeltme: aynı tarif + seed, yüz düzeltme kapalı / açık (Komando'ya uygun tarif: Alman nöbetçi)
+    b = {"prompt": "WW2 German sentry soldier, adult man, field grey uniform, grey steel helmet, holding a rifle, solo, one single character alone, full body 2D game character, high quality 2D game art, hand painted, detailed shading, front view, isolated on a plain flat solid medium gray background",
+         "seed": 17, "n": 1, "width": 832, "height": 1216, "style": "other", "auto": True, "hires": True}
+    d0, _ = post("/generate", b)
+    kaydet("yuz_kapali", d0["images"][0])
+    d1, _ = post("/generate", {**b, "yuz": True})
+    kaydet("yuz_acik", d1["images"][0])
+    lg = (d1.get("yuz") or [{}])[0]
+    assert lg.get("durum") == "düzeltildi", f"yüz düzeltilmedi: {d1.get('yuz')}"
+    yaz(f"Yüz düzeltme: {lg} · kapalı GPU {d0['seconds']} sn · açık GPU {d1['seconds']} sn (yüz {d1.get('yuz_seconds')} sn)")
+    # kadın çizgi film karakteri (yüz düzeltme açık)
+    d2, _ = post("/generate", {"prompt": "young woman adventurer with long red hair, green tunic and brown boots, solo, one single character alone, full body 2D game character, centered, 2D cartoon game art, clean bold outlines, flat colors, front view, isolated on a plain flat solid medium gray background",
+                               "seed": 42, "n": 1, "width": 832, "height": 1216, "style": "other", "auto": True, "lora": "cartoon", "hires": True, "yuz": True})
+    kaydet("yuz_cizgi_kadin", d2["images"][0])
+    yaz(f"Yüz düzeltme (çizgi film kadın): {d2.get('yuz')} · GPU {d2['seconds']} sn")
+
+
+dene("yüz düzeltme", yuz)
 dene("doku", doku)
 dene("ekstra kalite", hires)
 dene("dersler", dersler)

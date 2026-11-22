@@ -188,6 +188,11 @@ function hiresFor(stil) {
   const k = document.getElementById('hiresAc');
   return !!(k && k.checked && HIRES_STIL.includes(stil));
 }
+// Yüz düzeltme (0d): Modal motorunda karakter/düşman yüzünü bulup yüksek çözünürlükte yeniden çizer (pixel ve arkadan görünüşte kapalı)
+function yuzFor(stil, tur, bakis) {
+  const k = document.getElementById('yuzAc');
+  return !!((!k || k.checked) && stil !== 'pixel' && (tur === 'karakter' || tur === 'dusman') && bakis !== 'back' && bakis !== 'topdown');
+}
 const BAKIS = {
   front: 'front view facing the camera',
   side: 'side view profile facing right',
@@ -219,6 +224,9 @@ function guessTur(t) {
   if (/(kart çerçeve|çerçeve|kart şablon)/.test(t)) return 'kart';
   if (/(buton|düğme|panel|menü|can barı|arayüz|ui\b)/.test(t)) return 'ui';
   if (/(ikon|simge|icon)/.test(t)) return 'ikon';
+  if (/(canavar|yaratık|zombi|örümcek|ejderha|iskelet|hayalet|goblin|ork|slime|balçık|kurt|yılan|böcek|şeytan|iblis|düşman|vampir|mumya|golem)/.test(t)) return 'dusman';
+  // kişi tarifleri ("tüfekli asker", "kılıçlı şövalye") eşya sayılmasın: elde silah olsa da karakter
+  if (/(asker|adam\b|kadın|kız\b|oğlan|çocuk|savaşçı|şövalye|büyücü|komando|nöbetçi|subay|kahraman|okçu|avcı|prenses|kral|kraliçe|korsan|ninja|samuray)/.test(t)) return 'karakter';
   if (/(kılıç|kalkan|iksir|balta|mızrak|yay\b|ok\b|asa|tabanca|tüfek|sandık|anahtar|altın|para|mücevher|yüzük|kitap|eşya|silah|zırh parçası)/.test(t)) return 'esya';
   if (/(ev\b|kale|kule|bina|ağaç|kaya|çit|köprü|çadır|tapınak|dükkan)/.test(t)) return 'bina';
   if (/(canavar|yaratık|zombi|örümcek|ejderha|iskelet|hayalet|goblin|ork|slime|balçık|kurt|yılan|böcek|şeytan|iblis|düşman|vampir|mumya|golem)/.test(t)) return 'dusman';
@@ -367,7 +375,7 @@ const ENGINES = {
   modal: {
     name: 'Modal (kendi GPU)',
     minGap: 0,
-    async generate({ prompt, seed, stil, negatif, w = 1024, h = 1024, seffaf = false, ref = null, refScale = 0.6, tile = false, parts = null, base = '', absent = null, styleText = '' }) {
+    async generate({ prompt, seed, stil, negatif, w = 1024, h = 1024, seffaf = false, ref = null, refScale = 0.6, tile = false, parts = null, base = '', absent = null, styleText = '', tur = '', bakis = '' }) {
       const { url, key } = modalCfg();
       const ac = new AbortController();
       const to = setTimeout(() => ac.abort(), 300000);
@@ -377,7 +385,7 @@ const ENGINES = {
           headers: { 'Content-Type': 'application/json', 'X-Sprite-Key': key },
           body: JSON.stringify({ prompt, seed, n: 1, width: w, height: h, auto: seffaf, style: stil === 'pixel' ? 'pixel' : 'other', negative: negatif || undefined,
             reference: ref || undefined, ref_scale: refScale, tileable: tile,
-            parts: parts || undefined, base, absent: absent || undefined, style_text: styleText, lora: loraFor(stil), hires: hiresFor(stil) || undefined }),
+            parts: parts || undefined, base, absent: absent || undefined, style_text: styleText, lora: loraFor(stil), hires: hiresFor(stil) || undefined, yuz: yuzFor(stil, tur, bakis) || undefined }),
         });
         if (r.status === 401) throw new Error('Motor anahtarı yanlış');
         if (!r.ok) throw new Error('Modal hatası ' + r.status);
@@ -389,6 +397,7 @@ const ENGINES = {
         c._dersler = d.dersler || [];
         c._ikiAsama = !!d.iki_asama;
         c._hires = !!d.hires;
+        c._yuz = (d.yuz && d.yuz[0] && d.yuz[0].durum) || '';
         c._puan = (d.puan && typeof d.puan[0] === 'number') ? d.puan[0] : null;
         return c;
       } finally { clearTimeout(to); }
@@ -398,7 +407,7 @@ const ENGINES = {
 const PARCA_TR = { 'bütün': 'görsel', head: 'kafa', face: 'yüz', wings: 'kanat', wing: 'kanat', tail: 'kuyruk', arms: 'kollar', arm: 'kol', legs: 'bacaklar', body: 'gövde', horns: 'boynuz', hands: 'eller' };
 function dersOzeti(c) {
   // motorun geçmiş hatalardan öğrendiği kurallar (modal/app.py DERSLER)
-  const ek = c && c._hires ? ' · ekstra kalite ✓' : '';
+  const ek = (c && c._hires ? ' · ekstra kalite ✓' : '') + (c && c._yuz === 'düzeltildi' ? ' · yüz düzeltildi ✓' : '');
   if (!c || !c._dersler || !c._dersler.length) return ek;
   return ek + ' · dersler: ' + c._dersler.join(', ') + (c._ikiAsama ? ' (taslak→pixel)' : '');
 }
@@ -554,7 +563,7 @@ function uretimKarti({ desc, en, o, seed, model, ref = null, refScale = 0.6, eti
   const w = card.querySelector('.wait');
   enqueue({
     params: { prompt, seed, model, stil: o.stil, negatif: o.negatif, seffaf: o.seffaf, ref, refScale, tile: o.tur === 'tile',
-      parts: o.parts || null, base: o.base || '', absent: o.absent || null, styleText: STIL[o.stil] || '', ...sizeFor(o.tur, o.bakis) },
+      parts: o.parts || null, base: o.base || '', absent: o.absent || null, styleText: STIL[o.stil] || '', tur: o.tur, bakis: o.bakis, ...sizeFor(o.tur, o.bakis) },
     onWait: s => { w.textContent = `Sırada · ${s} sn`; $('#durum').textContent = `Sıra: ${queue.length + 1} iş bekliyor`; },
     onStart: eng => { w.textContent = 'Üretiliyor (' + eng.name + ')...'; card.querySelector('.meta').textContent += ' · ' + eng.name.split(' ')[0]; },
     onDone: c => {
@@ -644,6 +653,10 @@ $('#seffaf').checked = localStorage.getItem('sa-seffaf') !== '0';
 try {
   $('#loraAc').checked = localStorage.getItem('sa-lora') !== '0';
   $('#loraAc').addEventListener('change', () => { try { localStorage.setItem('sa-lora', $('#loraAc').checked ? '1' : '0'); } catch (e) { /* yok */ } });
+} catch (e) { /* kutu yoksa */ }
+try {
+  $('#yuzAc').checked = localStorage.getItem('sa-yuz') !== '0';
+  $('#yuzAc').addEventListener('change', () => { try { localStorage.setItem('sa-yuz', $('#yuzAc').checked ? '1' : '0'); } catch (e) { /* yok */ } });
 } catch (e) { /* kutu yoksa */ }
 try {
   $('#hiresAc').checked = localStorage.getItem('sa-hires') !== '0';

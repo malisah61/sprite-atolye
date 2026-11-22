@@ -16,6 +16,7 @@ Uç nokta (POST /generate):
            "tileable": bool     → dikişsiz doku
            "parts": [{"name":"head","want":"monkey head..."}], "base": "snake" → otomatik parça kontrolü ve düzeltme
            "lora": "cartoon"|"chibi"|"dark", "lora_weight": 0-2 → stile özel LoRA (tetik kelimesi otomatik eklenir)
+           "yuz": bool → yüz düzeltme (0d): yüz bulunur, 1024'e büyütülüp img2img 0.4 ile yeniden çizilir; cevapta "yuz"
            "hires": bool → iki aşamalı üretim (hi-res fix): 1.5x büyüt + img2img (0.35), pixel/doku hariç; cevapta "hires"
            "dersler": bool (varsayılan true) → DERSLER kuralları; "iki_asama": bool → pixel'de taslak+referans
            cevapta "dersler": [uygulanan ders adları], "iki_asama": taslak kullanıldı mı,
@@ -783,11 +784,86 @@ class Motor:
             self.pipe.disable_vae_tiling()
         return yeni
 
+    def _yuz_kutu(self, im):
+        """CLIPSeg 'face' haritasında en güçlü tek bölge → (kutu, yumuşak maske PIL L) ya da (None, None).
+        Birden çok bölge çıkarsa (yüz + el gibi) olasılık toplamı en büyük olan alınır."""
+        import numpy as np
+        import torch
+        from PIL import Image, ImageFilter
+        from scipy import ndimage
+
+        with torch.no_grad():
+            inp = self.seg_proc(text=["face"], images=[im], return_tensors="pt").to("cuda")
+            try:
+                lg = self.seg(**inp, interpolate_pos_encoding=True).logits
+            except TypeError:
+                inp = self.seg_proc(text=["face"], images=[im.resize((224, 224))], return_tensors="pt",
+                                    size={"height": 224, "width": 224}).to("cuda")
+                lg = self.seg(**inp).logits
+        pr = torch.sigmoid(lg).squeeze().float().cpu().numpy()
+        pr = np.array(Image.fromarray((pr * 255).astype(np.uint8)).resize(im.size, Image.BILINEAR)).astype(np.float32) / 255
+        a = pr > 0.35
+        lab, n = ndimage.label(a)
+        if not n:
+            return None, None
+        guc = ndimage.sum(pr, lab, index=np.arange(1, n + 1))
+        k = int(np.argmax(guc)) + 1
+        if guc[k - 1] < 30:  # çok küçük/zayıf: yüz yok sayılır
+            return None, None
+        ys, xs = np.nonzero(lab == k)
+        box = (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
+        m = Image.fromarray(((lab == k) * 255).astype(np.uint8))
+        buy = max(5, int(0.25 * max(box[2] - box[0], box[3] - box[1])))
+        m = m.filter(ImageFilter.MaxFilter(buy // 2 * 2 + 1)).filter(ImageFilter.GaussianBlur(buy / 2))
+        return box, m
+
+    def _yuz_duzelt(self, im, prompt, negative, seed, ipa, strength=0.4, hedef=1024):
+        """0d Yüz düzeltme: yüzü bul, çevresini kırp, hedef çözünürlüğe büyütüp hafif img2img ile yeniden çiz,
+        küçültüp yumuşak maskeyle geri yapıştır (küçük yüzler tam boy görselde silik/bozuk çıkıyor)."""
+        import re
+
+        import numpy as np
+        import torch
+        from PIL import Image
+
+        im = im.convert("RGB")
+        box, m = self._yuz_kutu(im)
+        if box is None:
+            return im, {"durum": "yüz bulunamadı"}
+        fw, fh = box[2] - box[0], box[3] - box[1]
+        fs = max(fw, fh)
+        if fs < 14:
+            return im, {"durum": "yüz çok küçük", "boyut": fs}
+        side = int(min(min(im.size), max(96, fs * 2.2)))
+        if side >= 0.8 * hedef:
+            return im, {"durum": "yüz zaten büyük", "boyut": fs}
+        cx, cy = (box[0] + box[2]) // 2, (box[1] + box[3]) // 2
+        x0 = max(0, min(im.width - side, cx - side // 2))
+        y0 = max(0, min(im.height - side, cy - side // 2))
+        cb = (x0, y0, x0 + side, y0 + side)
+        crop = im.crop(cb).resize((hedef, hedef), Image.LANCZOS)
+        # tarifteki "tam boy / ayaklar" gibi kompozisyon sözleri yüz kırpıntısını şaşırtır → çıkar, yüz vurgusu ekle
+        p = re.sub(r"(?i)\b(full body|whole body visible|full figure|standing|feet|boots|shoes)\b,?", "", prompt)
+        p = re.sub(r"\s*,(\s*,)+", ",", p).strip(" ,")
+        p = f"detailed face, clear expressive eyes, well drawn facial features, {p}"[:1500]
+        g = torch.Generator("cuda").manual_seed(seed + 733)
+        yeni = self.i2i(prompt=p, negative_prompt=negative + ", deformed face, blurry face, extra eyes, asymmetric eyes",
+                        image=crop, strength=strength, num_inference_steps=30, guidance_scale=6.0, generator=g,
+                        ip_adapter_image=ipa).images[0].resize((side, side), Image.LANCZOS)
+        # maske: yüz bölgesi (yumuşak) × kırpıntı kenarına doğru sönen pencere (dikiş olmasın)
+        mk = np.array(m.crop(cb)).astype(np.float32) / 255
+        r = np.minimum(np.arange(side), np.arange(side)[::-1]).astype(np.float32) / max(1, side * 0.12)
+        pencere = np.clip(np.minimum.outer(r, r), 0, 1)
+        mk = Image.fromarray((np.clip(mk * pencere, 0, 1) * 255).astype(np.uint8))
+        im.paste(yeni, cb[:2], mk)
+        return im, {"durum": "düzeltildi", "boyut": fs, "kirpinti": side}
+
     def _run(self, prompt, negative, seed, n, width, height, style, transparent=False, auto=False, native=False,
              ref_img=None, ref_scale=0.6, tileable=False, parts=None, base="", style_text="", absent=None, hires=False,
-             kontrol=None):
+             kontrol=None, yuz=False):
         import base64
         import io
+        import re
         import time
 
         import torch
@@ -869,12 +945,29 @@ class Motor:
         if hires:
             out = self._hires(out, prompt, negative, seed, ipa)
         hs = round(time.time() - t1, 2)
+        # 0d Yüz düzeltme: karakterlerde küçük yüzü yüksek çözünürlükte yeniden çiz (pixel/doku/arkadan görünüşte kapalı)
+        yuz = bool(yuz) and style != "pixel" and not tileable and not re.search(r"(?i)\b(back view|from behind|facing away)\b", prompt)
+        yuz_log, ys = [], 0.0
+        if yuz:
+            t2 = time.time()
+            yeni = []
+            for k, im in enumerate(out):
+                try:
+                    im, lg = self._yuz_duzelt(im, prompt, negative, seed + k, ipa)
+                except Exception as e:  # noqa — yüz düzeltme olmazsa görsel olduğu gibi kalsın
+                    lg = {"durum": "hata", "hata": str(e)[:200]}
+                yeni.append(im); yuz_log.append(lg)
+            out = yeni
+            ys = round(time.time() - t2, 2)
         imgs, grids, plains = self._post(out, transparent, auto, style, native)
         r = {"images": imgs, "grid": grids, "plain": plains, "fixes": fixes, "puan": [round(x, 3) for x in puanlar],
              "seconds": round(time.time() - t0, 2)}
         if hires:
             r["hires"] = True
             r["hires_seconds"] = hs  # sadece büyütme + yeniden çizim süresi
+        if yuz:
+            r["yuz"] = yuz_log
+            r["yuz_seconds"] = ys
         return r
 
     @modal.asgi_app()
@@ -897,7 +990,7 @@ class Motor:
         def health():
             return {"ok": True, "motor": "sdxl+pixel-art-xl+ip-adapter", "model": BASE, "gpu": "T4",
                     "loralar": list(getattr(self, "loras", {})),
-                    "ozellikler": ["generate", "reference", "tileable", "edit", "inpaint", "rembg", "hires"]}
+                    "ozellikler": ["generate", "reference", "tileable", "edit", "inpaint", "rembg", "hires", "yuz"]}
 
         @api.post("/generate")
         def generate(body: dict, x_sprite_key: str = Header(default="")):
@@ -951,7 +1044,7 @@ class Motor:
                     self._lora = lora_once
             r = self._run(prompt, negative, seed, n, width, height, style, transparent, auto, native,
                           ref_img, ref_scale, tileable, parts, base, style_text, absent, bool(body.get("hires", False)),
-                          None if taslak else (kontrol_listesi or None))
+                          None if taslak else (kontrol_listesi or None), bool(body.get("yuz", False)))
             r["dersler"] = dersler
             r["iki_asama"] = taslak
             return r
