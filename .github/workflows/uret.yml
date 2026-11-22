@@ -31,6 +31,9 @@ on:
       ref_scale:
         description: 'Referans gücü (0-1)'
         default: '0.6'
+      ekstra:
+        description: 'Ekstra kalite / hi-res (true/false; pixel dışı stillerde)'
+        default: 'false'
 
 permissions:
   contents: write
@@ -62,6 +65,7 @@ jobs:
           IN_AD: ${{ inputs.ad }}
           IN_TEMIZLE: ${{ inputs.temizle }}
           IN_REF_SCALE: ${{ inputs.ref_scale }}
+          IN_EKSTRA: ${{ inputs.ekstra }}
         run: |
           python3 - <<'PY'
           import json, os, base64, urllib.request, time, re
@@ -70,6 +74,7 @@ jobs:
             "n": int(os.environ["IN_N"]), "seed": int(os.environ["IN_SEED"]),
             "width": int(os.environ["IN_W"]), "height": int(os.environ["IN_H"]),
             "auto": os.environ.get("IN_TEMIZLE", "true") == "true",
+            "hires": os.environ.get("IN_EKSTRA", "false") == "true",
           }
           if os.path.exists("/tmp/referans.png"):
               body["reference"] = base64.b64encode(open("/tmp/referans.png", "rb").read()).decode()
@@ -82,7 +87,7 @@ jobs:
           os.makedirs("/tmp/out", exist_ok=True)
           for k, im in enumerate(d["images"]):
               open(f"/tmp/out/{ad}-{os.environ['IN_STIL']}-{k+1}.png", "wb").write(base64.b64decode(im))
-          msg = f"{len(d['images'])} görsel, GPU {d['seconds']} sn, toplam {round(time.time()-t0)} sn, dersler: {d.get('dersler')}, taslak→pixel: {d.get('iki_asama')}"
+          msg = f"{len(d['images'])} görsel, GPU {d['seconds']} sn, toplam {round(time.time()-t0)} sn, dersler: {d.get('dersler')}, taslak→pixel: {d.get('iki_asama')}, ekstra kalite: {d.get('hires')} ({d.get('hires_seconds')} sn)"
           print(msg)
           open(os.environ["GITHUB_STEP_SUMMARY"], "a").write(msg + "\n")
           PY
