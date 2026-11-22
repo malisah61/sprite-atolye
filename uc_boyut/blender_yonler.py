@@ -62,7 +62,7 @@ sc.render.resolution_x = sc.render.resolution_y = boyut
 sc.view_settings.view_transform = "Standard"
 w = bpy.data.worlds.new("dunya")
 w.use_nodes = True
-w.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.8
+w.node_tree.nodes["Background"].inputs["Strength"].default_value = 1.2
 sc.world = w
 
 cam = bpy.data.objects.new("kamera", bpy.data.cameras.new("kamera"))
@@ -71,7 +71,7 @@ cam.data.ortho_scale = olcek * 1.15
 sc.collection.objects.link(cam)
 sc.camera = cam
 gunes = bpy.data.objects.new("gunes", bpy.data.lights.new("gunes", "SUN"))
-gunes.data.energy = 2.5
+gunes.data.energy = 3.0
 sc.collection.objects.link(gunes)
 
 

@@ -14,7 +14,16 @@ on:
         default: '512'
       donus:
         description: 'Modeli dikleştirme dönüşü "rx ry rz on_aci" (derece)'
-        default: '0 0 0 0'
+        default: '0 0 0 270'
+      tarif:
+        description: 'İsteğe bağlı: yönleri motorla yeniden boya (İngilizce tarif; boşsa boyama yok)'
+        default: ''
+      stil:
+        description: 'Boyama stili (cartoon, hd, pixel, chibi, dark)'
+        default: 'cartoon'
+      guc:
+        description: 'Boyama gücü (0.3-0.7; yüksek = daha çok detay, daha az 3D sadakati)'
+        default: '0.55'
 
 permissions:
   contents: write
@@ -56,6 +65,27 @@ jobs:
           ls -la /tmp/out
           /opt/blender-4.2.3-linux-x64/blender -b --python uc_boyut/blender_yonler.py -- /tmp/out/model.ply /tmp/out "$IN_YON" "$IN_BOYUT" $IN_DONUS 2>&1 | grep -E "bitti|Error|error|Saved" | tail -20
           pip install --quiet pillow && python3 uc_boyut/sayfa.py /tmp/out
+      - name: Motorla yeniden boya (isteğe bağlı)
+        if: ${{ inputs.tarif != '' }}
+        env:
+          MOTOR_URL: https://malisah61--sprite-atolye-motor-web.us-east.modal.run
+          SPRITE_KEY: ${{ secrets.SPRITE_KEY }}
+          IN_TARIF: ${{ inputs.tarif }}
+          IN_STIL: ${{ inputs.stil }}
+          IN_GUC: ${{ inputs.guc }}
+        run: |
+          python3 uc_boyut/boya.py /tmp/out /tmp/giris.png "$IN_TARIF" "$IN_STIL" "$IN_GUC"
+          python3 - <<'PY'
+          import glob
+          from PIL import Image
+          fs = sorted(glob.glob('/tmp/out/boyali_*.png'))
+          ims = [Image.open(f).convert('RGBA') for f in fs]
+          H = max(i.height for i in ims)
+          ims = [i.resize((round(i.width * H / i.height), H)) for i in ims]
+          out = Image.new('RGBA', (sum(i.width for i in ims), H), (0, 0, 0, 0)); x = 0
+          for i in ims: out.paste(i, (x, 0)); x += i.width
+          out.save('/tmp/out/sayfa_boyali.png')
+          PY
       - name: Kaydet (deneme-sonuclari/uc_boyut)
         if: always()
         run: |
