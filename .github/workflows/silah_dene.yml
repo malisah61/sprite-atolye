@@ -1,0 +1,27 @@
+name: Silah algılayıcı dene (GPU'suz)
+
+on:
+  workflow_dispatch:
+    inputs:
+      klasor:
+        description: 'deneme-sonuclari dalındaki görsel klasörü'
+        default: 'silah_dene'
+
+jobs:
+  dene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Kur
+        run: pip install --quiet torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu && pip install --quiet transformers==4.46.3 pillow scipy numpy
+      - name: Dene
+        env:
+          IN_K: ${{ inputs.klasor }}
+        run: |
+          git fetch --depth 1 origin deneme-sonuclari
+          mkdir -p /tmp/g && git archive FETCH_HEAD "$IN_K" | tar -x -C /tmp/g
+          python3 modal/silah_dene.py "/tmp/g/$IN_K" | tee -a "$GITHUB_STEP_SUMMARY"
