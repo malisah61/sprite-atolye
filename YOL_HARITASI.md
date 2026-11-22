@@ -35,7 +35,13 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - 21 Kasım 2. deneme (sabit kamera, her sahne kendi temiz ilk karesinden, 40 adım, paralel GPU): **belirgin daha iyi** — kamera sabit, renkler doğal, zincir bozulması yok. Klip ~8,3 dk GPU ≈ 0,11 $; 15 sn ≈ 0,33 $ (+ yükleme). Kalan kusurlar: 3. sahnede saç rüzgârda aşırı uçuşuyor; sahneler arası kıyafet ufak farklı (1. sahnede şort). Paralellik: 3 istenen GPU'nun 2'si aynı anda açıldı, 3. ~6 dk sonra (Modal L4 sırası/plan sınırı) → bekleme 19,5 dk. `max_containers=10` yapıldı.
 - Sonraki: `/video` uç noktası + sitede "Video / Sahne" sekmesi (sahne listesi, birleştirme, müzik); kısa animasyonları arka planı silinmiş sprite sheet'e çevirme.
 
-## 1. 🔄 Sipariş sistemi (siparis.yml) — 22 Kasım gece kullanıcıyla CANLI oturumda yapılıyor (Komando hattı: görsel → TripoSR → Quaternius UAL iskeleti → Komando 8 yön sprite sayfası). Gece görevi bu maddeye ve siparis/ klasörüne DOKUNMASIN; sıradaki bitmemiş maddeyle devam etsin.
+## 1. ✅ Sipariş sistemi (siparis.yml) — 22-23 Kasım gece, kullanıcıyla canlı oturumda
+- `siparis.yml` (girdi: hedef repo, dal, dosya, sadece, hizli, onceki): hedef repodaki `assets/siparis.json` → her satır paralel bir iş: motorla görsel (otomatik temizlik) → (`"hat": "komando"` ise) TripoSR 3D → `siparis/komando_hatti.py` (Blender: Komando'nun `asker.py` sahnesi + `asker2.py` Quaternius UAL iskeleti) → 8 yön × 8 animasyon sprite sayfası (Komando düzeni) + önizleme. Çıktılar `deneme-sonuclari/siparis/<repo>/<zaman>/`; AJAN_TOKEN varsa hedef repoya `assets/otomatik-<tarih>` dalı + PR (`siparis/teslim.py`).
+- Motor "T-pose" tarifine rağmen kolları aşağıda çiziyor → hat kendisi çözüyor: mankenin kolları modele en iyi oturan açıya indirilir (KD-ağacı, 40–82°), ağırlık o pozdan aktarılır, model ters dönüşle T-poza açılır; kol-gövde ve bacak-bacak arası gerilen yüzler kesilir.
+- `onceki` girdisi: önceki siparişin görselleriyle motor harcamadan yeniden render.
+- İlk teslim: Komando Bölüm 9 karakterleri (alman_dag, alman_muhendis, isci, madenci, komando_nisanci). Süre: karakter başına ~25-35 dk (paralel), GPU ≈ 0,02 $/karakter.
+- Sonraki: diğer oyunlar için 2D hat (yön seti + animasyon sekmesi çıktıları), AJAN_TOKEN gelince otomatik PR.
+
 ## 2. ⬜ Yapay zekâ ile gerçek animasyon (OpenPose ControlNet + IP-Adapter, /animate)
 ## 3. ⬜ Tileset (Wang/blob geçişleri, Godot .tres)
 ## 4. 🔄 Yön seti iyileştirme (arkadan görünüş, 4/8 yön) — Blender yolu (kullanıcı isteği, 22 Kasım akşam)

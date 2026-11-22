@@ -15,6 +15,7 @@ Temizlik hatası şüphesinde: ham görseli `uret.yml` (temizle=false) ile üret
 | 22 Kasım (gece) | Arka plan vinyetli (ortası açık gri) olunca kol-gövde arasındaki gerçek boşluklar **gri yama** olarak geri geldi | `fill_holes` artık tek renk yerine **yerel arka plan tahmini** ile kıyaslıyor |
 
 | 22 Kasım (gece) | Sadece "battle axe" istenen aslan adama model fazladan bir **kılıç** ekledi (bacağın içinden geçiyor). Kullanıcı uyardı: "kılıç olmaz başka bir şey olur" — yasaklamak yerine çözüm | **Tek silah** dersi (yasak yok): (1) tarife elin ne yaptığı yazılır ("wielding a single battle axe with both hands"; kalkan varsa "kalkan diğer elde"); (2) 4 hızlı taslakta CLIPSeg ile "weapon" bölgeleri sayılır, tek silahlı taslak seçilir (ilk denemede CLIP'in tüm resme bakarak puanlaması kılıcı ayırt edemedi — `silah_dene.yml` ile ölçüldü: kılıçlı görsellerde 3 bölge, sadece baltalıda 1); (3) birden çok adayda tarife en uyumlu olan başa konur (⭐ en iyi). Sadece karakter tariflerinde, tek bir silah adı geçiyorsa ("dual/two/both" yoksa) |
+| 23 Kasım (gece) | Sipariş/Komando hattı: tarifte "T-pose, arms stretched out" yazmasına rağmen 3 adayın üçü de kollar aşağıda çizildi (2 sipariş üst üste) | Tarifle zorlamak yerine **3D tarafında çöz**: mankenin kolları modele oturan açıya indirilir, ağırlık o pozdan aktarılır, model ters dönüşle T-poza açılır (`siparis/komando_hatti.py`). Aday seçimi: gerçek T-poz (en/boy > 0.8) varsa o, yoksa motorun en iyisi |
 
 ## Açık sorunlar (henüz kural yok)
 - Küçük yan figürler (kavalcının faresi) çoğu zaman çizilmiyor.
