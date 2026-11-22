@@ -1,0 +1,42 @@
+name: Temizlik dene (GPU'suz)
+
+on:
+  workflow_dispatch:
+    inputs:
+      gorsel:
+        description: 'deneme-sonuclari dalındaki görselin yolu (örn: uretim/x.png)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  dene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Kur
+        run: pip install --quiet modal "rembg==2.0.59" "onnxruntime==1.19.2" scipy pillow numpy
+      - name: Görseli getir ve temizle
+        env:
+          IN_G: ${{ inputs.gorsel }}
+        run: |
+          git fetch --depth 1 origin deneme-sonuclari
+          git show "FETCH_HEAD:$IN_G" > /tmp/giris.png
+          python3 modal/temizlik_dene.py /tmp/giris.png /tmp/out | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Kaydet (deneme-sonuclari/temizlik)
+        run: |
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          D="temizlik/$(date -u +%Y%m%d-%H%M%S)"
+          for i in 1 2 3; do
+            git fetch origin deneme-sonuclari && git checkout -f -B deneme-sonuclari origin/deneme-sonuclari
+            git rm -rq --cached . 2>/dev/null || true
+            find . -maxdepth 1 ! -name . ! -name .git ! -name uretim ! -name deneme ! -name temizlik -exec rm -rf {} +
+            mkdir -p "$D" && cp /tmp/out/*.png "$D/"
+            git add "$D" && git commit -qm "Temizlik denemesi $D" && git push -q origin deneme-sonuclari && break
+            sleep 5
+          done
