@@ -24,6 +24,12 @@ on:
       guc:
         description: 'Boyama gücü (0.3-0.7; yüksek = daha çok detay, daha az 3D sadakati)'
         default: '0.55'
+      anim:
+        description: 'İsteğe bağlı animasyonlar (virgüllü: yuru,kos); boşsa yok'
+        default: ''
+      egim:
+        description: 'Animasyon kamerası yukarıdan bakış açısı (derece; Commandos ~35)'
+        default: '35'
 
 permissions:
   contents: write
@@ -65,6 +71,16 @@ jobs:
           ls -la /tmp/out
           /opt/blender-4.2.3-linux-x64/blender -b --python uc_boyut/blender_yonler.py -- /tmp/out/model.ply /tmp/out "$IN_YON" "$IN_BOYUT" $IN_DONUS 2>&1 | grep -E "bitti|Error|error|Saved" | tail -20
           pip install --quiet pillow && python3 uc_boyut/sayfa.py /tmp/out
+      - name: Blender ile animasyon (isteğe bağlı)
+        if: ${{ inputs.anim != '' }}
+        env:
+          IN_ANIM: ${{ inputs.anim }}
+          IN_EGIM: ${{ inputs.egim }}
+          IN_YON: ${{ inputs.yon }}
+        run: |
+          ON=$(echo "${{ inputs.donus }}" | awk '{print $4}')
+          /opt/blender-4.2.3-linux-x64/blender -b --python uc_boyut/blender_anim.py -- /tmp/out/model.ply /tmp/out/anim "$IN_YON" 8 256 "${ON:-270}" "$IN_EGIM" "$IN_ANIM" 2>&1 | grep -E "boy |bitti|Error|rror:|Traceback|line [0-9]" | tail -30
+          python3 uc_boyut/sayfa_anim.py /tmp/out/anim
       - name: Motorla yeniden boya (isteğe bağlı)
         if: ${{ inputs.tarif != '' }}
         env:
@@ -94,7 +110,7 @@ jobs:
           D="uc_boyut/$(date -u +%Y%m%d-%H%M%S)"
           for i in 1 2 3; do
             git fetch origin deneme-sonuclari && git checkout -f -B deneme-sonuclari origin/deneme-sonuclari
-            mkdir -p "$D" && cp /tmp/out/* "$D/"
+            mkdir -p "$D" && cp -r /tmp/out/* "$D/"
             git add "$D" && git commit -qm "3D yönler $D" && git push -q origin deneme-sonuclari && break
             sleep 5
           done
