@@ -35,7 +35,7 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - 21 Kasım 2. deneme (sabit kamera, her sahne kendi temiz ilk karesinden, 40 adım, paralel GPU): **belirgin daha iyi** — kamera sabit, renkler doğal, zincir bozulması yok. Klip ~8,3 dk GPU ≈ 0,11 $; 15 sn ≈ 0,33 $ (+ yükleme). Kalan kusurlar: 3. sahnede saç rüzgârda aşırı uçuşuyor; sahneler arası kıyafet ufak farklı (1. sahnede şort). Paralellik: 3 istenen GPU'nun 2'si aynı anda açıldı, 3. ~6 dk sonra (Modal L4 sırası/plan sınırı) → bekleme 19,5 dk. `max_containers=10` yapıldı.
 - Sonraki: `/video` uç noktası + sitede "Video / Sahne" sekmesi (sahne listesi, birleştirme, müzik); kısa animasyonları arka planı silinmiş sprite sheet'e çevirme.
 
-## 1. ⬜ Sipariş sistemi (siparis.yml, AJAN_TOKEN gerekli)
+## 1. 🔄 Sipariş sistemi (siparis.yml) — 22 Kasım gece kullanıcıyla CANLI oturumda yapılıyor (Komando hattı: görsel → TripoSR → Quaternius UAL iskeleti → Komando 8 yön sprite sayfası). Gece görevi bu maddeye ve siparis/ klasörüne DOKUNMASIN; sıradaki bitmemiş maddeyle devam etsin.
 ## 2. ⬜ Yapay zekâ ile gerçek animasyon (OpenPose ControlNet + IP-Adapter, /animate)
 ## 3. ⬜ Tileset (Wang/blob geçişleri, Godot .tres)
 ## 4. 🔄 Yön seti iyileştirme (arkadan görünüş, 4/8 yön) — Blender yolu (kullanıcı isteği, 22 Kasım akşam)
