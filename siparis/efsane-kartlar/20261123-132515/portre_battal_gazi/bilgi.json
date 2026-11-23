@@ -1,0 +1,19 @@
+{
+ "ad": "portre_battal_gazi",
+ "tarif": "Battal Gazi, legendary Seljuk Turkish warrior hero, tall pointed conical iron helmet wrapped with a white turban, chainmail aventail hanging from the helmet, grey beard, long kaftan with lamellar scale armor, green cloak, wide sash belt, holding a curved scimitar sword, pixel art, 16-bit SNES JRPG character portrait, head and shoulders bust shot facing forward, close-up of face and shoulders only, bold outlines, rich shading, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.795,
+  0.68,
+  0.67
+ ],
+ "gpu_sn": 124.63,
+ "toplam_sn": 482,
+ "dersler": [
+  "silah",
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/battal_gazi.png"
+}

@@ -1,0 +1,18 @@
+{
+ "ad": "portre_hel",
+ "tarif": "Hel Norse goddess of the dead, woman whose face and body are split down the middle, the left half pale and beautiful, the right half dark blue and corpse-like, long black hair, dark hooded cloak, bone crown, pixel art, 16-bit SNES JRPG character portrait, head and shoulders bust shot facing forward, close-up of face and shoulders only, bold outlines, rich shading, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.983,
+  0.894,
+  0.78
+ ],
+ "gpu_sn": 126.45,
+ "toplam_sn": 820,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/hel.png"
+}

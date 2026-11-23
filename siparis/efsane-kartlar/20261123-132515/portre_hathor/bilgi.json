@@ -1,0 +1,18 @@
+{
+ "ad": "portre_hathor",
+ "tarif": "Hathor Egyptian goddess of love and music, beautiful woman with long black hair, a golden sun disc held between two large curved cow horns on her head, red linen dress, gold collar necklace, holding a sistrum, pixel art, 16-bit SNES JRPG character portrait, head and shoulders bust shot facing forward, close-up of face and shoulders only, bold outlines, rich shading, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.927,
+  0.866,
+  0.845
+ ],
+ "gpu_sn": 135.59,
+ "toplam_sn": 298,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/hathor.png"
+}

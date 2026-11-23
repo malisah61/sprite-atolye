@@ -1,0 +1,19 @@
+{
+ "ad": "beden_tyr",
+ "tarif": "Tyr Norse god of war, stern warrior with braided red-brown beard, iron helmet with a nose guard, chainmail, fur cloak, sword in his only hand, round wooden shield strapped to his other arm, pixel art, full body 16-bit SNES JRPG battle sprite with chunky proportions, short and stocky, big head about one third of the body height, standing three-quarter view facing right, whole body visible from head to feet, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.886,
+  0.852,
+  0.652
+ ],
+ "gpu_sn": 329.23,
+ "toplam_sn": 1189,
+ "dersler": [
+  "silah",
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/tyr.png"
+}
