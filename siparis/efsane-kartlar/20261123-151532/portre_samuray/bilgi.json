@@ -1,0 +1,18 @@
+{
+ "ad": "portre_samuray",
+ "tarif": "Japanese samurai warrior in red lacquered o-yoroi armor, horned kabuto helmet with menpo face mask, drawing a katana, pixel art, 16-bit SNES JRPG character portrait, head and shoulders bust shot facing forward, close-up of face and shoulders only, bold outlines, rich shading, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.988,
+  0.955,
+  0.713
+ ],
+ "gpu_sn": 238.45,
+ "toplam_sn": 886,
+ "dersler": [
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/samuray.png"
+}

@@ -1,0 +1,18 @@
+{
+ "ad": "portre_amaterasu",
+ "tarif": "Amaterasu Japanese sun goddess, serene woman with long black hair, golden sun disc halo behind her head, white and red layered kimono robes, holding the sacred bronze mirror Yata no Kagami, pixel art, 16-bit SNES JRPG character portrait, head and shoulders bust shot facing forward, close-up of face and shoulders only, bold outlines, rich shading, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.953,
+  0.888,
+  0.814
+ ],
+ "gpu_sn": 98.22,
+ "toplam_sn": 509,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/amaterasu.png"
+}

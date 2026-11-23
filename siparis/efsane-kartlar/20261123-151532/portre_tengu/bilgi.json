@@ -1,0 +1,18 @@
+{
+ "ad": "portre_tengu",
+ "tarif": "Tengu Japanese mountain spirit warrior, red face with a very long nose, black feathered wings, yamabushi monk clothes with small black hat tokin, feather fan and katana, pixel art, 16-bit SNES JRPG character portrait, head and shoulders bust shot facing forward, close-up of face and shoulders only, bold outlines, rich shading, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  1.0,
+  1.0,
+  0.915
+ ],
+ "gpu_sn": 234.18,
+ "toplam_sn": 741,
+ "dersler": [
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/tengu.png"
+}
