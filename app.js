@@ -858,9 +858,9 @@ $('#btnArka').onclick = () => {
 };
 /* Modal motoru: uzun işler (ekstra kalite + yüz düzeltme 150 sn'yi aşabiliyor) iş kuyruğuyla çalışır:
    POST /is/<tür> → {is}, sonra GET /is/<id> yoklanır. Eski motorda (404) doğrudan çağrıya düşer. */
-async function motorIs(tur, body, signal, ilerleme) {
+async function motorIs(tur, body, signal, ilerleme, kokUrl) {
   const { url, key } = modalCfg();
-  const kok = url.replace(/\/+$/, '');
+  const kok = (kokUrl || url).replace(/\/+$/, '');
   const H = { 'Content-Type': 'application/json', 'X-Sprite-Key': key };
   let r;
   try {
@@ -1082,7 +1082,7 @@ async function canvasB64(c) {
 async function animateAI() {
   const kind = $('#animTur').value, tur = AI_ANIM[kind];
   if (!tur) return toast('Bu hareket yapay zekâ ile henüz yok (bekleme, yürüme, koşma, saldırı, hasar, zıplama var). Kodla deneyebilirsin.', 5000);
-  const { url, key } = animCfg();
+  const { url } = animCfg();
   if (!url) return toast('Modal motoru ayarlı değil (Üret → Motor ayarları)');
   let tarif = $('#animTarif').value.trim();
   if (!tarif && AN.en) tarif = AN.en;
@@ -1099,15 +1099,8 @@ async function animateAI() {
     const body = { anim: tur, n: +$('#animKare').value, seed: Math.floor(Math.random() * 1e6), prompt: [tarif, STIL[stil]].filter(Boolean).join(', '),
       style: stil === 'pixel' ? 'pixel' : 'other', lora: loraFor(stil), yon: +$('#animYon').value, auto: true };
     if (AN.src) body.image = await canvasB64(AN.src);
-    const ac = new AbortController();
-    const to = setTimeout(() => ac.abort(), 900000);
-    let r;
-    try {
-      r = await fetch(url + '/animate', { method: 'POST', signal: ac.signal, headers: { 'Content-Type': 'application/json', 'X-Sprite-Key': key }, body: JSON.stringify(body) });
-    } finally { clearTimeout(to); }
-    if (r.status === 401) throw new Error('Motor anahtarı yanlış');
-    if (!r.ok) throw new Error('Animasyon motoru hatası ' + r.status + ' ' + (await r.text()).slice(0, 200));
-    const d = await r.json();
+    // 3-5 dk süren iş: iş kuyruğuyla (POST /is/animate + yoklama), 150 sn sınırına takılmaz
+    const d = await motorIs('animate', body, null, null, url);
     AN.frames = [];
     for (const f of d.frames) {
       const bin = Uint8Array.from(atob(f), ch => ch.charCodeAt(0));

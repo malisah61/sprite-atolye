@@ -166,11 +166,28 @@ def animasyon():
         yaz("⚠️ Animasyon motoru adresi yok (ANIM_URL), test atlandı"); return
     n = int(os.environ.get("ANIM_N", "4"))
     body = {"anim": "yuru", "n": n, "seed": 7, "style": "pixel", "prompt": "green zombie, 2D game enemy", "image": ana["img"], "poz": True}
-    req = urllib.request.Request(au + "/animate", data=json.dumps(body).encode(), headers={"Content-Type": "application/json", "X-Sprite-Key": KEY})
-    try:
-        d = json.load(urllib.request.urlopen(req, timeout=900))
+    H = {"Content-Type": "application/json", "X-Sprite-Key": KEY}
+    try:  # iş kuyruğu (3-5 dk; Modal web 150 sn sınırı)
+        r = json.load(urllib.request.urlopen(urllib.request.Request(au + "/is/animate", data=json.dumps(body).encode(), headers=H), timeout=300))
     except urllib.error.HTTPError as e:
         raise RuntimeError(f"HTTP {e.code}: {e.read().decode(errors='replace')[:800]}")
+    d, son = None, time.time() + 1200
+    while time.time() < son:
+        time.sleep(5)
+        try:
+            q = json.load(urllib.request.urlopen(urllib.request.Request(au + "/is/" + r["is"], headers=H), timeout=120))
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise RuntimeError("iş kayboldu")
+            continue
+        except Exception:  # noqa
+            continue
+        if q["durum"] == "calisiyor":
+            continue
+        if q["durum"] == "hata":
+            raise RuntimeError(f"Motor: {q.get('kod')} {q.get('detay')}")
+        d = q["sonuc"]; break
+    assert d, "animasyon zaman aşımı"
     assert len(d["frames"]) == n, f"kare sayısı {len(d['frames'])} != {n}"
     kaydet("anim_referans", d["reference"])
     for i, f in enumerate(d["frames"]):

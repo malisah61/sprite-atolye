@@ -1209,6 +1209,7 @@ ANIM_TURLER = {"bekleme": 4, "yuru": 8, "kos": 8, "saldir": 8, "zipla": 6, "hasa
     max_containers=1,
     secrets=[modal.Secret.from_name("sprite-key")],
 )
+@modal.concurrent(max_inputs=10)  # iş yoklamaları (GET /is/<id>) uzun animasyonun arkasında beklemesin
 class Animator:
     @modal.enter()
     def load(self):
@@ -1371,12 +1372,56 @@ class Animator:
         def health():
             return {"ok": True, "motor": "animator (OpenPose ControlNet + IP-Adapter)", "gpu": "L4", "turler": ANIM_TURLER}
 
+        # 8 karelik animasyon 3-5 dk sürer; Modal web uç noktası 150 sn'yi aşan isteği tarayıcıda düşürür →
+        # iş kuyruğu (Motor'daki gibi): POST /is/animate → {"is": id}, GET /is/<id> ile yoklanır.
+        import threading
+        import time as _time
+        import uuid
+
+        isler = {}
+        gpu_kilit = threading.Lock()
+
+        @api.post("/is/{tur}")
+        def is_baslat(tur: str, body: dict, x_sprite_key: str = Header(default="")):
+            if key and x_sprite_key != key:
+                raise HTTPException(status_code=401, detail="Anahtar yanlış")
+            if tur != "animate":
+                raise HTTPException(status_code=404, detail="bilinmeyen iş türü")
+            for k in [k for k, v in isler.items() if _time.time() - v["t0"] > 1800]:
+                isler.pop(k, None)
+            is_id = uuid.uuid4().hex[:16]
+            isler[is_id] = {"durum": "calisiyor", "t0": _time.time()}
+
+            def calis():
+                try:
+                    isler[is_id].update(durum="bitti", sonuc=animate(body, x_sprite_key))
+                except HTTPException as e:
+                    isler[is_id].update(durum="hata", kod=e.status_code, detay=str(e.detail)[:1200])
+                except Exception as e:  # noqa
+                    isler[is_id].update(durum="hata", kod=500, detay=f"{type(e).__name__}: {str(e)[:600]}")
+
+            threading.Thread(target=calis, daemon=True).start()
+            return {"is": is_id}
+
+        @api.get("/is/{is_id}")
+        def is_durum(is_id: str, x_sprite_key: str = Header(default="")):
+            if key and x_sprite_key != key:
+                raise HTTPException(status_code=401, detail="Anahtar yanlış")
+            d = isler.get(is_id)
+            if d is None:
+                raise HTTPException(status_code=404, detail="iş bulunamadı (motor yeniden başlamış olabilir)")
+            if d["durum"] == "calisiyor":
+                return {"durum": "calisiyor", "sure": round(_time.time() - d["t0"])}
+            isler.pop(is_id, None)
+            return {k: v for k, v in d.items() if k != "t0"}
+
         @api.post("/animate")
         def animate(body: dict, x_sprite_key: str = Header(default="")):
             if key and x_sprite_key != key:
                 raise HTTPException(status_code=401, detail="Anahtar yanlış")
             try:
-                return self.animate(body)
+                with gpu_kilit:
+                    return self.animate(body)
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
             except Exception as e:  # noqa

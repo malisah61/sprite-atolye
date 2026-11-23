@@ -16,6 +16,32 @@ URL = os.environ["ANIM_URL"].rstrip("/")
 ad, turler = sys.argv[1], sys.argv[2].split(",")
 ref = sys.argv[3] if len(sys.argv) > 3 and os.path.exists(sys.argv[3]) else None
 os.makedirs("/tmp/out", exist_ok=True)
+H = {"Content-Type": "application/json", "X-Sprite-Key": os.environ.get("SPRITE_KEY", "")}
+
+
+def is_calistir(body):
+    """İş kuyruğu: POST /is/animate → id, GET /is/<id> yoklanır (Modal 150 sn sınırına takılmaz)."""
+    try:
+        r = json.load(urllib.request.urlopen(urllib.request.Request(URL + "/is/animate", data=json.dumps(body).encode(), headers=H), timeout=300))
+    except urllib.error.HTTPError as e:
+        print("Motor hatası:", e.code, e.read().decode(errors="replace")[:2000]); raise
+    son = time.time() + 1200
+    while time.time() < son:
+        time.sleep(5)
+        try:
+            d = json.load(urllib.request.urlopen(urllib.request.Request(URL + "/is/" + r["is"], headers=H), timeout=120))
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise RuntimeError("iş kayboldu (motor yeniden başladı)")
+            continue
+        except Exception:  # noqa — anlık kopma
+            continue
+        if d["durum"] == "calisiyor":
+            continue
+        if d["durum"] == "hata":
+            raise RuntimeError(f"Motor: {d.get('kod')} {d.get('detay')}")
+        return d["sonuc"]
+    raise RuntimeError("zaman aşımı")
 ozet = open(os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null"), "a")
 for tur in turler:
     body = {"anim": tur, "prompt": os.environ.get("TARIF", ""), "style": os.environ.get("STIL", "other"),
@@ -26,13 +52,8 @@ for tur in turler:
         body["lora"] = os.environ["LORA"]
     if ref:
         body["image"] = base64.b64encode(open(ref, "rb").read()).decode()
-    req = urllib.request.Request(URL + "/animate", data=json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json", "X-Sprite-Key": os.environ.get("SPRITE_KEY", "")})
     t0 = time.time()
-    try:
-        d = json.load(urllib.request.urlopen(req, timeout=900))
-    except urllib.error.HTTPError as e:
-        print("Motor hatası:", e.code, e.read().decode(errors="replace")[:2000]); raise
+    d = is_calistir(body)
     kareler = [Image.open(io.BytesIO(base64.b64decode(f))).convert("RGBA") for f in d["frames"]]
     for i, k in enumerate(kareler):
         k.save(f"/tmp/out/{ad}_{tur}_{i}.png")
