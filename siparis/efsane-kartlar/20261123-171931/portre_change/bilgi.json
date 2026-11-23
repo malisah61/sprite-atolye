@@ -1,0 +1,18 @@
+{
+ "ad": "portre_change",
+ "tarif": "Chang'e Chinese moon goddess, graceful woman in flowing white and pale blue hanfu with long silk ribbons, elaborate hair bun with silver ornaments, holding a white jade rabbit, full moon behind her, pixel art, 16-bit SNES JRPG character portrait, head and shoulders bust shot facing forward, close-up of face and shoulders only, bold outlines, rich shading, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.9,
+  0.836,
+  0.804
+ ],
+ "gpu_sn": 96.42,
+ "toplam_sn": 591,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/change.png"
+}

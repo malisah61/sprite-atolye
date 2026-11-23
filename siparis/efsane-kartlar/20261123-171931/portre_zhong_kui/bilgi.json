@@ -1,0 +1,19 @@
+{
+ "ad": "portre_zhong_kui",
+ "tarif": "Zhong Kui Chinese demon queller, fierce burly man with bulging eyes and a thick bushy black beard, black scholar official hat with wings, red robe, holding a sword, pixel art, 16-bit SNES JRPG character portrait, head and shoulders bust shot facing forward, close-up of face and shoulders only, bold outlines, rich shading, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.944,
+  0.928,
+  0.744
+ ],
+ "gpu_sn": 99.37,
+ "toplam_sn": 641,
+ "dersler": [
+  "silah",
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/zhong_kui.png"
+}

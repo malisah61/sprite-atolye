@@ -1,0 +1,18 @@
+{
+ "ad": "portre_terakota",
+ "tarif": "Chinese Terracotta Army warrior statue come to life, clay brown skin and armor, topknot hair, lamellar terracotta armor plates, holding a bronze ji halberd, pixel art, 16-bit SNES JRPG character portrait, head and shoulders bust shot facing forward, close-up of face and shoulders only, bold outlines, rich shading, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.927,
+  0.914,
+  0.846
+ ],
+ "gpu_sn": 243.67,
+ "toplam_sn": 776,
+ "dersler": [
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/terakota.png"
+}

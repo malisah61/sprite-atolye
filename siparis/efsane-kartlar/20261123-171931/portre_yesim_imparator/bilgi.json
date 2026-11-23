@@ -1,0 +1,18 @@
+{
+ "ad": "portre_yesim_imparator",
+ "tarif": "Jade Emperor of Chinese heaven, wise old man with long black beard, golden Chinese imperial mianguan crown with hanging bead strings, yellow dragon robe, holding a white jade tablet, clouds behind, pixel art, 16-bit SNES JRPG character portrait, head and shoulders bust shot facing forward, close-up of face and shoulders only, bold outlines, rich shading, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.958,
+  0.95,
+  0.897
+ ],
+ "gpu_sn": 98.65,
+ "toplam_sn": 729,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/yesim_imparator.png"
+}
