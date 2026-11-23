@@ -1,0 +1,19 @@
+{
+ "ad": "beden_susanoo",
+ "tarif": "Susanoo Japanese storm god, wild long black hair and beard, dark blue armored kimono with storm clouds, holding the long straight sword Kusanagi, lightning and rain, pixel art, full body 16-bit SNES JRPG battle sprite with chunky proportions, short and stocky, big head about one third of the body height, standing three-quarter view facing right, whole body visible from head to feet, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.903,
+  0.878,
+  0.612
+ ],
+ "gpu_sn": 288.13,
+ "toplam_sn": 574,
+ "dersler": [
+  "silah",
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/susanoo.png"
+}

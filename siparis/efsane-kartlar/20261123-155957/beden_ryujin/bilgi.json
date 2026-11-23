@@ -1,0 +1,18 @@
+{
+ "ad": "beden_ryujin",
+ "tarif": "Ryujin Japanese dragon king of the sea, long blue-green eastern dragon with golden horns and whiskers, holding a glowing tide jewel pearl, ocean waves, pixel art, full body 16-bit SNES JRPG battle sprite with chunky proportions, short and stocky, big head about one third of the body height, standing three-quarter view facing right, whole body visible from head to feet, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.752,
+  0.75,
+  0.687
+ ],
+ "gpu_sn": 125.43,
+ "toplam_sn": 933,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/ryujin.png"
+}

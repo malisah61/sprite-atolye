@@ -1,0 +1,18 @@
+{
+ "ad": "beden_tengu",
+ "tarif": "Tengu Japanese mountain spirit warrior, red face with a very long nose, black feathered wings, yamabushi monk clothes with small black hat tokin, feather fan and katana, pixel art, full body 16-bit SNES JRPG battle sprite with chunky proportions, short and stocky, big head about one third of the body height, standing three-quarter view facing right, whole body visible from head to feet, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  1.0,
+  0.989,
+  0.969
+ ],
+ "gpu_sn": 299.96,
+ "toplam_sn": 1056,
+ "dersler": [
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/tengu.png"
+}

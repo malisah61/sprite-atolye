@@ -1,0 +1,19 @@
+{
+ "ad": "beden_ninja",
+ "tarif": "Japanese ninja shinobi in dark navy shinobi shozoku outfit and face mask, short ninjato sword on the back, shuriken in hand, pixel art, full body 16-bit SNES JRPG battle sprite with chunky proportions, short and stocky, big head about one third of the body height, standing three-quarter view facing right, whole body visible from head to feet, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.886,
+  0.876,
+  0.856
+ ],
+ "gpu_sn": 298.05,
+ "toplam_sn": 1253,
+ "dersler": [
+  "silah",
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/ninja.png"
+}

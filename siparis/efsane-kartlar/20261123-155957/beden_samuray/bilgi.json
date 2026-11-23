@@ -1,0 +1,18 @@
+{
+ "ad": "beden_samuray",
+ "tarif": "Japanese samurai warrior in red lacquered o-yoroi armor, horned kabuto helmet with menpo face mask, drawing a katana, pixel art, full body 16-bit SNES JRPG battle sprite with chunky proportions, short and stocky, big head about one third of the body height, standing three-quarter view facing right, whole body visible from head to feet, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.952,
+  0.927,
+  0.708
+ ],
+ "gpu_sn": 298.83,
+ "toplam_sn": 1087,
+ "dersler": [
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/samuray.png"
+}
