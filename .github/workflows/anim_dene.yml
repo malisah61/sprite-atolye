@@ -1,0 +1,69 @@
+name: Animasyon dene (yapay zekâ)
+
+# OpenPose ControlNet + IP-Adapter ile kare kare animasyon denemesi. Canlı motora dokunmaz (ayrı deneme uygulaması,
+# iş bitince kapanır). Sonuç: deneme-sonuclari dalında animasyon/<tarih>/ altına.
+on:
+  workflow_dispatch:
+    inputs:
+      tarif:
+        description: 'Karakter tarifi (İngilizce)'
+        default: 'WW2 British commando soldier, adult man, green beret, dark green denison camouflage smock, khaki trousers, black boots, holding a rifle, high quality 2D game art, hand painted, detailed shading'
+      anim:
+        description: 'bekleme | yuru | kos | saldir | zipla | hasar'
+        default: 'yuru'
+      yontem:
+        description: 'A (bağımsız) / B (yan yana) / AB'
+        default: 'AB'
+      seed:
+        default: '7'
+      lora:
+        description: 'boş ya da cartoon'
+        default: ''
+      referans:
+        description: 'İsteğe bağlı: deneme-sonuclari dalındaki referans görsel yolu'
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  dene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install --quiet modal pillow
+      - name: Referansı getir
+        if: ${{ inputs.referans != '' }}
+        env:
+          IN_REF: ${{ inputs.referans }}
+        run: |
+          git fetch --depth 1 origin deneme-sonuclari
+          git show "FETCH_HEAD:$IN_REF" > /tmp/referans.png
+      - name: Dene (modal run — bitince kendi kapanır)
+        env:
+          IN_TARIF: ${{ inputs.tarif }}
+        run: |
+          R=""; [ -f /tmp/referans.png ] && R="--ref /tmp/referans.png"
+          timeout 3600 modal run modal/anim_dene.py --tarif "$IN_TARIF" --anim "${{ inputs.anim }}" --yontem "${{ inputs.yontem }}" --seed ${{ inputs.seed }} --lora "${{ inputs.lora }}" --etiket "anim_${{ inputs.anim }}" $R
+      - name: Deneme uygulamasını durdur (kredi yemesin)
+        if: always()
+        run: modal app stop -y sprite-atolye-anim-deneme || true
+      - name: Sonuçları kaydet (deneme-sonuclari dalı)
+        if: always()
+        run: |
+          ls anim_* >/dev/null 2>&1 || exit 0
+          mkdir -p /tmp/out && cp anim_* /tmp/out/
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          for i in 1 2 3; do
+            git fetch origin deneme-sonuclari && git checkout -f -B deneme-sonuclari origin/deneme-sonuclari
+            D="animasyon/$(date -u +%Y%m%d-%H%M)"; mkdir -p "$D" && cp /tmp/out/* "$D/"
+            git add animasyon && git commit -qm "Animasyon denemesi $D" && git push -q origin deneme-sonuclari && break
+            sleep 5
+          done
