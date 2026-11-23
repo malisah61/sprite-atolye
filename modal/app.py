@@ -760,7 +760,7 @@ class Motor:
             log.append({"parca": "bütün", "durum": "cilalandı"})
         return im, log
 
-    def _hires(self, out, prompt, negative, seed, ipa, oran=1.5, strength=0.35, uzun=1536):
+    def _hires(self, out, prompt, negative, seed, ipa, oran=1.5, strength=0.35, uzun=1536, alan=1.65e6):
         """İki aşamalı üretim (hi-res fix): görseli büyütüp hafif img2img ile ince detayları yeniden çizer.
         Uzun kenar en fazla 1536 (T4 belleği); sadece pixel olmayan stillerde (pixel ızgarası bulanıklaşır)."""
         import torch
@@ -770,15 +770,23 @@ class Motor:
         self.pipe.enable_vae_tiling()  # 1536'da VAE çözme belleği taşmasın
         try:
             for k, im in enumerate(out):
-                s = min(oran, uzun / max(im.size))
+                # 23 Kasım: kare 1024 görsel 1536x1536'ya çıkınca T4'te üretim 500 hatası verdi → toplam piksel de sınırlı
+                # (832x1216 → 1088x1536 ≈ 1.65 MP sorunsuz çalışıyordu)
+                s = min(oran, uzun / max(im.size), (alan / (im.width * im.height)) ** 0.5)
                 if s <= 1.05:
                     yeni.append(im); continue
                 W, H = max(64, round(im.width * s / 64) * 64), max(64, round(im.height * s / 64) * 64)
                 big = im.convert("RGB").resize((W, H), Image.LANCZOS)
                 g = torch.Generator("cuda").manual_seed(seed + 500 + k)
-                yeni.append(self.i2i(prompt=prompt, negative_prompt=negative, image=big, strength=strength,
-                                     num_inference_steps=30, guidance_scale=6.0, generator=g,
-                                     ip_adapter_image=ipa).images[0])
+                torch.cuda.empty_cache()
+                try:
+                    yeni.append(self.i2i(prompt=prompt, negative_prompt=negative, image=big, strength=strength,
+                                         num_inference_steps=30, guidance_scale=6.0, generator=g,
+                                         ip_adapter_image=ipa).images[0])
+                except torch.cuda.OutOfMemoryError:  # bellek yetmezse görsel ilk haliyle kalsın, istek düşmesin
+                    print("[hires] bellek yetmedi, ilk hali veriliyor", flush=True)
+                    torch.cuda.empty_cache()
+                    yeni.append(im)
                 torch.cuda.empty_cache()
         finally:
             self.pipe.disable_vae_tiling()
@@ -996,6 +1004,24 @@ class Motor:
         def generate(body: dict, x_sprite_key: str = Header(default="")):
             if key and x_sprite_key != key:
                 raise HTTPException(status_code=401, detail="Anahtar yanlış")
+            try:
+                return _generate(body)
+            except HTTPException:
+                raise
+            except Exception as e:  # noqa — 23 Kasım: çıplak "500" hata ayıklamayı imkânsız kılıyordu → ayrıntı dön
+                import traceback
+
+                iz = traceback.format_exc()
+                print(iz, flush=True)
+                try:
+                    import torch
+
+                    torch.cuda.empty_cache()
+                except Exception:  # noqa
+                    pass
+                raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)[:300]} | {iz[-700:]}")
+
+        def _generate(body):
             prompt = str(body.get("prompt", ""))[:1500]
             if not prompt:
                 raise HTTPException(status_code=400, detail="prompt boş")

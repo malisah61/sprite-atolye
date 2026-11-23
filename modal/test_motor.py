@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import time
+import urllib.error
 import urllib.request
 
 URL = os.environ["MOTOR_URL"].rstrip("/")
@@ -17,7 +18,10 @@ def post(yol, body):
     req = urllib.request.Request(URL + yol, data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json", "X-Sprite-Key": KEY})
     t = time.time()
-    d = json.load(urllib.request.urlopen(req, timeout=900))
+    try:
+        d = json.load(urllib.request.urlopen(req, timeout=900))
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"HTTP {e.code}: {e.read().decode(errors='replace')[:800]}")
     return d, round(time.time() - t)
 
 
