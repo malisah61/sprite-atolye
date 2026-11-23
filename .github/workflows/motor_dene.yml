@@ -1,0 +1,42 @@
+name: Motor isteği dene (hata ayıklama)
+
+# Sitenin gönderdiği gövdeyle motoru çağırır; durum kodu, süre, yönlendirme ve CORS başlıklarını yazar.
+on:
+  workflow_dispatch:
+    inputs:
+      govde:
+        description: 'JSON gövde (/generate)'
+        required: true
+
+jobs:
+  dene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MOTOR_URL: https://malisah61--sprite-atolye-motor-web.us-east.modal.run
+      SPRITE_KEY: ${{ secrets.SPRITE_KEY }}
+      IN_GOVDE: ${{ inputs.govde }}
+    steps:
+      - run: |
+          python3 - <<'PY'
+          import json, os, time, urllib.request, urllib.error
+          class NoRedir(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, *a, **k): return None
+          op = urllib.request.build_opener(NoRedir)
+          body = json.loads(os.environ["IN_GOVDE"])
+          for deneme in (1, 2):
+              t0 = time.time()
+              req = urllib.request.Request(os.environ["MOTOR_URL"] + "/generate", data=json.dumps(body).encode(),
+                  headers={"Content-Type": "application/json", "X-Sprite-Key": os.environ["SPRITE_KEY"], "Origin": "https://malisah61.github.io"})
+              try:
+                  r = op.open(req, timeout=900); kod, hdr, veri = r.status, dict(r.headers), r.read()
+              except urllib.error.HTTPError as e:
+                  kod, hdr, veri = e.code, dict(e.headers), e.read()
+              sure = round(time.time() - t0)
+              print(f"deneme {deneme}: HTTP {kod}, {sure} sn")
+              print("başlıklar:", {k: v for k, v in hdr.items() if k.lower() in ("location", "access-control-allow-origin", "content-type", "modal-function-call-id")})
+              if kod == 200:
+                  d = json.loads(veri); print({k: v for k, v in d.items() if k != "images"})
+              else:
+                  print("gövde:", veri[:800])
+          PY
