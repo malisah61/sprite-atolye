@@ -1,0 +1,17 @@
+{
+ "ad": "portre_hades",
+ "tarif": "Hades, Greek god of the underworld, pale grim king with black beard, dark bronze armor, black crown, two-pronged bident spear, green ghost flames, pixel art, 16-bit SNES JRPG character portrait, head and shoulders bust shot facing forward, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.709,
+  0.596
+ ],
+ "gpu_sn": 87.7,
+ "toplam_sn": 577,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/hades.png"
+}

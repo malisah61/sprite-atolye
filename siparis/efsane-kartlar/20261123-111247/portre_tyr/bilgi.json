@@ -1,0 +1,18 @@
+{
+ "ad": "portre_tyr",
+ "tarif": "Tyr, Norse god of war, bearded warrior with one hand, iron helmet, chainmail, sword, round wooden shield, pixel art, 16-bit SNES JRPG character portrait, head and shoulders bust shot facing forward, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.702,
+  0.602
+ ],
+ "gpu_sn": 90.98,
+ "toplam_sn": 641,
+ "dersler": [
+  "silah",
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/tyr.png"
+}

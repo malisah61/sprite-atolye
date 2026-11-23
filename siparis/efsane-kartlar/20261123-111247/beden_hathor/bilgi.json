@@ -1,0 +1,17 @@
+{
+ "ad": "beden_hathor",
+ "tarif": "Hathor, Egyptian goddess of love and music, woman with cow horns holding a golden sun disc headdress, red linen dress, gold collar, holding a sistrum, pixel art, full body standing battle pose, side view facing right, 16-bit SNES JRPG battle sprite, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.987,
+  0.958
+ ],
+ "gpu_sn": 90.66,
+ "toplam_sn": 646,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/hathor.png"
+}

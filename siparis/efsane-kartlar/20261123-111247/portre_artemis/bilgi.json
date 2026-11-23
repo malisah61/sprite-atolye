@@ -1,0 +1,19 @@
+{
+ "ad": "portre_artemis",
+ "tarif": "Artemis, Greek goddess of the hunt, young woman with long silver hair, crescent moon tiara, short white tunic, silver bow, pixel art, 16-bit SNES JRPG character portrait, head and shoulders bust shot facing forward, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.709,
+  0.706
+ ],
+ "gpu_sn": 82.97,
+ "toplam_sn": 580,
+ "dersler": [
+  "silah",
+  "insan kulağı",
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/artemis.png"
+}

@@ -1,0 +1,18 @@
+{
+ "ad": "beden_tyr",
+ "tarif": "Tyr, Norse god of war, bearded warrior with one hand, iron helmet, chainmail, sword, round wooden shield, pixel art, full body standing battle pose, side view facing right, 16-bit SNES JRPG battle sprite, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.793,
+  0.789
+ ],
+ "gpu_sn": 91.12,
+ "toplam_sn": 652,
+ "dersler": [
+  "silah",
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/tyr.png"
+}

@@ -1,0 +1,15 @@
+{
+ "ad": "beden_kerberos",
+ "tarif": "Cerberus, three-headed black hellhound with fiery orange eyes and spiked collar, flames, pixel art, full body standing battle pose, side view facing right, 16-bit SNES JRPG battle sprite, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  1.0,
+  0.847
+ ],
+ "gpu_sn": 91.32,
+ "toplam_sn": 641,
+ "dersler": [],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/kerberos.png"
+}

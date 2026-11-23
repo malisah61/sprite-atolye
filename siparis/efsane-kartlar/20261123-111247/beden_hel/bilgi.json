@@ -1,0 +1,17 @@
+{
+ "ad": "beden_hel",
+ "tarif": "Hel, Norse goddess of the dead, woman whose face is half pale and half dark blue, long black hair, dark hooded cloak, bone crown, pixel art, full body standing battle pose, side view facing right, 16-bit SNES JRPG battle sprite, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.87,
+  0.709
+ ],
+ "gpu_sn": 91.05,
+ "toplam_sn": 641,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/hel.png"
+}

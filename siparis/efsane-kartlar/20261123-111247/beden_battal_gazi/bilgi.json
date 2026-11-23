@@ -1,0 +1,18 @@
+{
+ "ad": "beden_battal_gazi",
+ "tarif": "Battal Gazi, legendary Turkish warrior hero, pointed helmet with turban and plume, chainmail, green cape, curved sword, pixel art, full body standing battle pose, side view facing right, 16-bit SNES JRPG battle sprite, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.686,
+  0.656
+ ],
+ "gpu_sn": 92.53,
+ "toplam_sn": 320,
+ "dersler": [
+  "silah",
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/battal_gazi.png"
+}
