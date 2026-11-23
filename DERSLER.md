@@ -16,10 +16,12 @@ Temizlik hatası şüphesinde: ham görseli `uret.yml` (temizle=false) ile üret
 
 | 22 Kasım (gece) | Sadece "battle axe" istenen aslan adama model fazladan bir **kılıç** ekledi (bacağın içinden geçiyor). Kullanıcı uyardı: "kılıç olmaz başka bir şey olur" — yasaklamak yerine çözüm | **Tek silah** dersi (yasak yok): (1) tarife elin ne yaptığı yazılır ("wielding a single battle axe with both hands"; kalkan varsa "kalkan diğer elde"); (2) 4 hızlı taslakta CLIPSeg ile "weapon" bölgeleri sayılır, tek silahlı taslak seçilir (ilk denemede CLIP'in tüm resme bakarak puanlaması kılıcı ayırt edemedi — `silah_dene.yml` ile ölçüldü: kılıçlı görsellerde 3 bölge, sadece baltalıda 1); (3) birden çok adayda tarife en uyumlu olan başa konur (⭐ en iyi). Sadece karakter tariflerinde, tek bir silah adı geçiyorsa ("dual/two/both" yoksa) |
 | 23 Kasım (gece) | Sipariş/Komando hattı: tarifte "T-pose, arms stretched out" yazmasına rağmen 3 adayın üçü de kollar aşağıda çizildi (2 sipariş üst üste) | Tarifle zorlamak yerine **3D tarafında çöz**: mankenin kolları modele oturan açıya indirilir, ağırlık o pozdan aktarılır, model ters dönüşle T-poza açılır (`siparis/komando_hatti.py`). Aday seçimi: gerçek T-poz (en/boy > 0.8) varsa o, yoksa motorun en iyisi |
+| 23 Kasım (gece) | Kare (1024×1024) görselde ekstra kalite 1536×1536'ya çıkınca motor çıplak "500" verdi (2 portre isteği üst üste) | Hi-res'te toplam piksel de sınırlı (≤1,65 MP → kare 1024 → 1280); bellek yetmezse görsel ilk haliyle döner; motor hatası artık ayrıntılı (tür + iz) döner, `uret.yml` yazdırır |
 | 23 Kasım (gece) | Çizgi film kadında iki göz farklı renk/biçim (tam boy görselde yüz küçük kalıyor) — ilk kez not edildi | Kural değil özellik: **yüz düzeltme** (`"yuz": true`, sitede varsayılan açık). Test görselinde gözler eşitlendi. Tekrar görülürse yüz düzeltmenin gücü (0.4) ya da kırpıntı oranı (2.2x) ayarlanacak |
 
 ## Açık sorunlar (henüz kural yok)
 - Küçük yan figürler (kavalcının faresi) çoğu zaman çizilmiyor.
 - Beyaz gömlek/yaka arka plan sanılıp silinebiliyor — BiRefNet'e geçişle düzelmesi bekleniyor, gözlenecek.
 - Temizlik testlerinde zombinin ayak dibinde küçük gri gölge kalıntısı.
+- Portrelerde başlık/rozet tutmuyor (23 Kasım: "green beret" istenen Reilly'de bir aday başı açık, diğeri kasketli; şapka rozetleri uydurma). Tekrar görülürse: başlığı tarifin başına al / CLIP kontrolüyle ('wearing a beret' vs 'peaked cap') taslak seç.
 - Çizgi film stilinde ara ara karakter sayfası (aynı kişi 3 açıdan).
