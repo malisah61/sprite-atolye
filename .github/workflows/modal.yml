@@ -14,6 +14,12 @@ on:
 permissions:
   contents: write
 
+# 23 Kasım (kullanıcı kararı: motor işleri tek oturumdan): aynı anda tek kurulum + test. Yeni gönderim gelirse
+# eski kurulum/test iptal edilir (eski kodun testi tek GPU'yu meşgul edip kredi yemesin).
+concurrency:
+  group: modal-motor
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
