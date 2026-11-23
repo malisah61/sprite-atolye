@@ -28,12 +28,12 @@ jobs:
           # 1) iş kuyruğu (sitenin yolu): POST /is/generate → GET /is/<id>
           H = {"Content-Type": "application/json", "X-Sprite-Key": os.environ["SPRITE_KEY"], "Origin": "https://malisah61.github.io"}
           t0 = time.time()
-          r = op.open(urllib.request.Request(os.environ["MOTOR_URL"] + "/is/generate", data=json.dumps(body).encode(), headers=H), timeout=120)
+          r = op.open(urllib.request.Request(os.environ["MOTOR_URL"] + "/is/generate", data=json.dumps(body).encode(), headers=H), timeout=300)
           print("iş başlat:", r.status, dict(r.headers).get("access-control-allow-origin"), round(time.time() - t0, 1), "sn")
           is_id = json.loads(r.read())["is"]
           while True:
               time.sleep(3)
-              q = op.open(urllib.request.Request(os.environ["MOTOR_URL"] + "/is/" + is_id, headers=H), timeout=120)
+              q = op.open(urllib.request.Request(os.environ["MOTOR_URL"] + "/is/" + is_id, headers=H), timeout=300)
               d = json.loads(q.read())
               if d["durum"] != "calisiyor":
                   break

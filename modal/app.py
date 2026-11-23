@@ -388,6 +388,9 @@ app = modal.App(APP_NAME, image=image)
     max_containers=1,     # aynı anda tek GPU → bütçe güvende
     secrets=[modal.Secret.from_name("sprite-key")],
 )
+# 23 Kasım: aynı anda birden çok istek kabul edilir (GPU işleri gpu_kilit ile sırayla); böylece iş yoklamaları
+# (GET /is/<id>) uzun bir üretimin arkasında beklemez.
+@modal.concurrent(max_inputs=10)
 class Motor:
     @modal.enter()
     def load(self):
@@ -1178,7 +1181,8 @@ class Motor:
             raw = base64.b64decode(str(body.get("image", "")).split(",")[-1])
             im = Image.open(io.BytesIO(raw))
             im.thumbnail((2048, 2048))
-            out = self._cut(im)
+            with gpu_kilit:
+                out = self._cut(im)
             k = None
             if body.get("auto", True):
                 out, k = auto_clean(out, "pixel", getattr(self, "last_bg", None), bool(body.get("native", False)))

@@ -862,7 +862,15 @@ async function motorIs(tur, body, signal, ilerleme) {
   const { url, key } = modalCfg();
   const kok = url.replace(/\/+$/, '');
   const H = { 'Content-Type': 'application/json', 'X-Sprite-Key': key };
-  const r = await fetch(kok + '/is/' + tur, { method: 'POST', signal, headers: H, body: JSON.stringify(body) });
+  let r;
+  try {
+    r = await fetch(kok + '/is/' + tur, { method: 'POST', signal, headers: H, body: JSON.stringify(body) });
+  } catch (e) {
+    // motor soğuk başlarken ilk istek düşebilir: bir kez daha dene
+    if (signal && signal.aborted) throw e;
+    await new Promise(ok => setTimeout(ok, 4000));
+    r = await fetch(kok + '/is/' + tur, { method: 'POST', signal, headers: H, body: JSON.stringify(body) });
+  }
   if (r.status === 401) throw new Error('Motor anahtarı yanlış');
   if (r.status === 404 || r.status === 405) {
     const r2 = await fetch(kok + '/' + tur, { method: 'POST', signal, headers: H, body: JSON.stringify(body) });
