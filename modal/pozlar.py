@@ -70,7 +70,7 @@ def _iskelet(govde_egim=0.0, bob=0.0, bacak_s=(0, 5), bacak_o=(0, 5), kol_s=(0, 
 
 
 def kareler(tur, n=None):
-    """tur: bekleme | yuru | kos | saldir | zipla | hasar → poz listesi."""
+    """tur: bekleme | yuru | kos | saldir | ates | zipla | hasar → poz listesi."""
     out = []
     if tur == "yuru":
         n = n or 8
@@ -100,12 +100,23 @@ def kareler(tur, n=None):
             out.append(_iskelet(govde_egim=1, bob=-0.006 * (1 - math.cos(t)) / 2,
                                 bacak_s=(6, 4), bacak_o=(-6, 4), kol_s=(6 + 2 * math.sin(t), 12), kol_o=(-6 + 2 * math.sin(t), 12)))
     elif tur == "saldir":
-        # yakın kol yukarı kalkar (hazırlık) → ileri-aşağı savurur → geri döner
-        anim = [(10, 20, 0), (-60, 60, -4), (-150, 30, -8), (-170, 20, -8), (40, 10, 18), (75, 5, 22), (60, 15, 14), (20, 20, 4)]
+        # iki elle savurma (kılıç/balta/sopa): kollar başın arkasına kalkar → öne-aşağı savurur, ön bacakla hamle
+        # (23 Kasım: tek kol yukarıda + uzak kol sabitken model kolu "silah taşıma" sandı, savurma görünmedi)
+        # (kol açısı, dirsek, gövde eğimi, ön bacak açısı, arka bacak açısı)
+        anim = [(15, 40, 0, 10, -8), (-70, 70, -6, 12, -10), (-150, 40, -10, 14, -12), (-175, 25, -12, 16, -14),
+                (-60, 10, 8, 28, -22), (45, 5, 20, 34, -26), (70, 10, 24, 34, -26), (35, 30, 10, 22, -16)]
         n = n or len(anim)
         for i in range(n):
-            pa, db, eg = anim[int(i * len(anim) / n)]
-            out.append(_iskelet(govde_egim=eg, bacak_s=(22, 8), bacak_o=(-18, 6), kol_s=(pa, db), kol_o=(-25, 40)))
+            pa, db, eg, on, arka = anim[int(i * len(anim) / n)]
+            out.append(_iskelet(govde_egim=eg, bacak_s=(on, 10), bacak_o=(arka, 6), kol_s=(pa, db), kol_o=(pa - 10, db + 8)))
+    elif tur == "ates":
+        # tüfek/tabanca ile nişan alıp ateş: iki kol öne, omuz hizasında; geri tepme (gövde geriye, kollar hafif yukarı)
+        anim = [(80, 15, 4, 0), (85, 8, 6, 0), (95, 0, -4, -6), (88, 6, 2, -2)]  # (kol açısı, dirsek, gövde, baş)
+        n = n or len(anim)
+        for i in range(n):
+            pa, db, eg, bas = anim[int(i * len(anim) / n)]
+            out.append(_iskelet(govde_egim=eg, bas_egim=bas + 6, bacak_s=(16, 10), bacak_o=(-14, 8),
+                                kol_s=(pa, db), kol_o=(pa - 15, db + 18)))
     elif tur == "zipla":
         anim = [(0, 0, 30), (0.0, -0.05, 50), (0.10, 0, 10), (0.16, 0, 35), (0.10, 0, 20), (0.0, -0.05, 50)]
         n = n or len(anim)
@@ -126,7 +137,14 @@ def kareler(tur, n=None):
     return out
 
 
-TURLER = ["bekleme", "yuru", "kos", "saldir", "zipla", "hasar"]
+def boy_sec(kareler_listesi, boy=0.84):
+    """Animasyonun TÜM karelerine tek ölçek: baş üstüne kalkan kollar (saldırı) ya da zıplama kadraja sığsın.
+    Ayak tabanı hep 0.92·H'de; en yüksek nokta üstten en az 0.03·H içeride kalır."""
+    tepe = max(p[1] for k in kareler_listesi for p in k.values() if p is not None) + 0.03
+    return min(boy, 0.89 / max(tepe, 1e-3))
+
+
+TURLER = ["bekleme", "yuru", "kos", "saldir", "ates", "zipla", "hasar"]
 
 
 def ciz(kare, W=768, H=1024, boy=0.84, x_merkez=0.5, kalin=None):
@@ -139,7 +157,7 @@ def ciz(kare, W=768, H=1024, boy=0.84, x_merkez=0.5, kalin=None):
         m = max(W, H)
         kalin = 4 * (1 if m < 500 else 2 if m < 1000 else 3 if m < 2000 else 4)
     olcek = boy * H
-    taban = H * (1 - (1 - boy) / 2)
+    taban = H * 0.92  # ayak tabanı sabit (boy küçülse de karakter yerde kalır)
 
     def px(p):
         return (W * x_merkez + p[0] * olcek, taban - p[1] * olcek)
@@ -174,7 +192,8 @@ if __name__ == "__main__":  # yerel önizleme: python3 modal/pozlar.py → pozla
     sat = []
     for tur in TURLER:
         ks = kareler(tur)
-        sat.append([ciz(k, 192, 256) for k in ks])
+        b = boy_sec(ks)
+        sat.append([ciz(k, 192, 256, boy=b) for k in ks])
     W = max(len(s) for s in sat) * 192
     out = Image.new("RGB", (W, 256 * len(sat)))
     for j, s in enumerate(sat):

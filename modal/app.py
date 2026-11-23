@@ -1198,12 +1198,12 @@ class Motor:
 # tuvalin solunda referans karakter (sabit), sağında yeni kare (inpaint) → model aynı resimdeki karakteri kopyalar.
 # 23 Kasım denemesi (anim_dene.yml): bağımsız kareler pozu tutturdu ama kıyafet kareden kareye değişti; yan yana
 # yöntemde 8 karenin hepsi aynı kıyafet/oran. T4'te bellek yetmedi (SDXL + ControlNet + IP-Adapter ≈ 12,5 GB) → L4.
-ANIM_TURLER = {"bekleme": 4, "yuru": 8, "kos": 8, "saldir": 8, "zipla": 6, "hasar": 4}
+ANIM_TURLER = {"bekleme": 4, "yuru": 8, "kos": 8, "saldir": 8, "ates": 4, "zipla": 6, "hasar": 4}
 
 
 @app.cls(
     gpu="L4",
-    cpu=4.0,
+    cpu=8.0,  # arka plan silme (BiRefNet, CPU) kareler çizilirken paralel yürür
     timeout=900,
     scaledown_window=60,  # 60 sn boşta kalınca kapanır
     max_containers=1,
@@ -1312,7 +1312,9 @@ class Animator:
         tek = f"{tarif}, solo, one single character, full body, side view, facing right, profile, isolated on a plain flat solid light gray background"
         iki = (f"two side-by-side pictures of the exact same character, identical outfit and colors, {tarif}, full body, "
                "side view, facing right, isolated on a plain flat solid light gray background")
-        dur = pozlar.ciz(pozlar.kareler("bekleme")[0], W, H)
+        pozlar_liste = pozlar.kareler(tur, n)
+        boy = pozlar.boy_sec(pozlar_liste)  # kollar baş üstüne kalkınca da kadraja sığsın (tüm karelere tek ölçek)
+        dur = pozlar.ciz(pozlar.kareler("bekleme")[0], W, H, boy=boy)
         gri = Image.new("RGB", (224, 224), (128, 128, 128))
         # 1) yandan referans: kullanıcının görseli varsa önce aynı karakterin yandan duruşu çizilir (görsel önden olabilir)
         ref_b64 = body.get("image") or body.get("reference")
@@ -1332,13 +1334,21 @@ class Animator:
                             width=W, height=H, generator=torch.Generator("cuda").manual_seed(seed), ip_adapter_image=gri,
                             controlnet_conditioning_scale=0.9).images[0]
         t_ref = round(time.time() - t0, 1)
-        # 2) kareler (yan yana yöntem)
-        kareler = []
-        for p in pozlar.kareler(tur, n):
-            kareler.append(self._yan_yana(ref, dur, pozlar.ciz(p, W, H), iki, neg, seed, float(body.get("ref_scale", 0.6)), W, H))
+        # 2) kareler (yan yana yöntem); arka plan silme CPU'da, bir sonraki kare GPU'da çizilirken (paralel)
+        from concurrent.futures import ThreadPoolExecutor
+
+        temizle = body.get("auto", True)
+        havuz = ThreadPoolExecutor(max_workers=2)
+        isler_k = []
+        for p in pozlar_liste:
+            k = self._yan_yana(ref, dur, pozlar.ciz(p, W, H, boy=boy), iki, neg, seed, float(body.get("ref_scale", 0.6)), W, H)
+            isler_k.append(havuz.submit(self._kes, k) if temizle else None)
+            if not temizle:
+                isler_k[-1] = k.convert("RGBA")
         t_kare = round(time.time() - t0 - t_ref, 1)
         # 3) temizlik + hizalama: hepsi aynı kutuyla kırpılır (zıplama/eğilme gibi hareketler korunur)
-        kesik = [self._kes(k) for k in kareler] if body.get("auto", True) else [k.convert("RGBA") for k in kareler]
+        kesik = [x.result() for x in isler_k] if temizle else isler_k
+        havuz.shutdown(wait=False)
         kutular = [k.getbbox() for k in kesik if k.getbbox()]
         if kutular:
             pad = 6
@@ -1354,7 +1364,7 @@ class Animator:
         r = {"frames": [b64(k) for k in kesik], "reference": b64(ref), "anim": tur, "n": n,
              "seconds": round(time.time() - t0, 2), "sure": {"referans": t_ref, "kareler": t_kare}}
         if body.get("poz"):
-            r["poses"] = [b64(pozlar.ciz(p, 192, 256)) for p in pozlar.kareler(tur, n)]
+            r["poses"] = [b64(pozlar.ciz(p, 192, 256, boy=boy)) for p in pozlar_liste]
         return r
 
     @modal.asgi_app()

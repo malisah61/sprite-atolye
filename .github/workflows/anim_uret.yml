@@ -8,7 +8,7 @@ on:
         description: 'Dosya adı'
         default: 'komando'
       turler:
-        description: 'Virgülle: bekleme,yuru,kos,saldir,zipla,hasar'
+        description: 'Virgülle: bekleme,yuru,kos,saldir,ates,zipla,hasar'
         default: 'yuru'
       tarif:
         description: 'Karakter tarifi (İngilizce)'

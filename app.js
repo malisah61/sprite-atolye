@@ -1055,10 +1055,11 @@ $('#btnAnimSec').onclick = async () => {
 $('#btnAnimUret').onclick = () => {
   if ($('#animYontem').value === 'yz') return animateAI();
   if (!AN.src) return toast('Önce sprite seç');
+  if (['jump', 'shoot'].includes($('#animTur').value)) return toast('Bu hareket sadece "Yapay zekâ ile" yönteminde var', 4000);
   buildAnimation();
 };
 /* Yapay zekâ ile animasyon (Modal "animator": OpenPose ControlNet + IP-Adapter, her kare yeniden çizilir) */
-const AI_ANIM = { idle: 'bekleme', walk: 'yuru', run: 'kos', attack: 'saldir', hit: 'hasar', jump: 'zipla' };
+const AI_ANIM = { idle: 'bekleme', walk: 'yuru', run: 'kos', attack: 'saldir', hit: 'hasar', jump: 'zipla', shoot: 'ates' };
 function animCfg() {
   const { url, key } = modalCfg();
   const a = (localStorage.getItem('sa-anim-url') || url.replace('motor-web', 'animator-web')).trim();
@@ -1081,7 +1082,7 @@ async function canvasB64(c) {
 }
 async function animateAI() {
   const kind = $('#animTur').value, tur = AI_ANIM[kind];
-  if (!tur) return toast('Bu hareket yapay zekâ ile henüz yok (bekleme, yürüme, koşma, saldırı, hasar, zıplama var). Kodla deneyebilirsin.', 5000);
+  if (!tur) return toast('Bu hareket yapay zekâ ile henüz yok (bekleme, yürüme, koşma, saldırı, ateş, hasar, zıplama var). Kodla deneyebilirsin.', 5000);
   const { url } = animCfg();
   if (!url) return toast('Modal motoru ayarlı değil (Üret → Motor ayarları)');
   let tarif = $('#animTarif').value.trim();
