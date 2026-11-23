@@ -1011,15 +1011,90 @@ $('#btnPixel').onclick = () => {
 $('#btnGeri').onclick = () => { if (WS.history.length) { WS.canvas = WS.history.pop(); drawWorkshop(); } else toast('Geri alınacak adım yok'); };
 $('#btnKaydet').onclick = async () => { if (!needWS()) return; await saveToGallery(WS.canvas, WS.name); toast('Galeriye kaydedildi'); };
 $('#btnIndir').onclick = async () => { if (!needWS()) return; downloadBlob(await canvasToBlob(WS.canvas), slug(WS.name) + '.png'); };
-$('#btnAnimeGonder').onclick = () => { if (!needWS()) return; AN.src = cloneCanvas(WS.canvas); AN.name = WS.name; openTab('anim'); buildAnimation(); };
+$('#btnAnimeGonder').onclick = () => { if (!needWS()) return; AN.src = cloneCanvas(WS.canvas); AN.name = WS.name; AN.en = WS.en || ''; if (AN.en && !$('#animTarif').value) $('#animTarif').value = AN.en; openTab('anim'); if ($('#animYontem').value !== 'yz') buildAnimation(); };
 
 /* ---------------- Kodla animasyon ---------------- */
 const AN = { src: null, name: 'sprite', frames: [], timer: null };
 $('#btnAnimSec').onclick = async () => {
   const [it] = await pickFromGallery('Animasyon için sprite seç', false);
-  if (it) { AN.src = await blobToCanvas(it.blob); AN.name = it.name; buildAnimation(); }
+  if (it) { AN.src = await blobToCanvas(it.blob); AN.name = it.name; AN.en = ''; if ($('#animYontem').value !== 'yz') buildAnimation(); else toast('Sprite seçildi — tarifi yazıp "Yapay zekâ ile oluştur"a bas'); }
 };
-$('#btnAnimUret').onclick = () => { if (!AN.src) return toast('Önce sprite seç'); buildAnimation(); };
+$('#btnAnimUret').onclick = () => {
+  if ($('#animYontem').value === 'yz') return animateAI();
+  if (!AN.src) return toast('Önce sprite seç');
+  buildAnimation();
+};
+/* Yapay zekâ ile animasyon (Modal "animator": OpenPose ControlNet + IP-Adapter, her kare yeniden çizilir) */
+const AI_ANIM = { idle: 'bekleme', walk: 'yuru', run: 'kos', attack: 'saldir', hit: 'hasar', jump: 'zipla' };
+function animCfg() {
+  const { url, key } = modalCfg();
+  const a = (localStorage.getItem('sa-anim-url') || url.replace('motor-web', 'animator-web')).trim();
+  return { url: a.replace(/\/+$/, ''), key };
+}
+function animYontemGoster() {
+  const yz = $('#animYontem').value === 'yz';
+  document.querySelectorAll('.yzAlan').forEach(e => { e.hidden = !yz; });
+  $('#btnAnimUret').textContent = yz ? 'Yapay zekâ ile oluştur' : 'Animasyonu oluştur';
+}
+try {
+  $('#animYontem').value = localStorage.getItem('sa-anim-yontem') || 'kod';
+  $('#animStil').value = (document.getElementById('stil') && $('#stil').value && $('#stil').value !== 'auto') ? $('#stil').value : 'hd';
+  $('#animYontem').addEventListener('change', () => { try { localStorage.setItem('sa-anim-yontem', $('#animYontem').value); } catch (e) { /* yok */ } animYontemGoster(); });
+  animYontemGoster();
+} catch (e) { /* kutu yoksa */ }
+async function canvasB64(c) {
+  const blob = await canvasToBlob(c);
+  return new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+}
+async function animateAI() {
+  const kind = $('#animTur').value, tur = AI_ANIM[kind];
+  if (!tur) return toast('Bu hareket yapay zekâ ile henüz yok (bekleme, yürüme, koşma, saldırı, hasar, zıplama var). Kodla deneyebilirsin.', 5000);
+  const { url, key } = animCfg();
+  if (!url) return toast('Modal motoru ayarlı değil (Üret → Motor ayarları)');
+  let tarif = $('#animTarif').value.trim();
+  if (!tarif && AN.en) tarif = AN.en;
+  if (!tarif && !AN.src) return toast('Sprite seç ya da karakter tarifi yaz');
+  const b = $('#btnAnimUret'), eski = b.textContent;
+  b.disabled = true;
+  const t0 = Date.now();
+  const sayac = setInterval(() => { b.textContent = `Çiziliyor... ${Math.round((Date.now() - t0) / 1000)} sn`; }, 1000);
+  try {
+    if (tarif && /[çğıöşüÇĞİÖŞÜ]|\b(ve|bir|ile|elinde|kılıç|asker)\b/i.test(tarif)) {
+      try { tarif = (await interpret(tarif, 'karakter', '', 'side')).en || tarif; } catch (e) { /* çeviri olmazsa olduğu gibi */ }
+    }
+    const stil = $('#animStil').value;
+    const body = { anim: tur, n: +$('#animKare').value, seed: Math.floor(Math.random() * 1e6), prompt: [tarif, STIL[stil]].filter(Boolean).join(', '),
+      style: stil === 'pixel' ? 'pixel' : 'other', lora: loraFor(stil), yon: +$('#animYon').value, auto: true };
+    if (AN.src) body.image = await canvasB64(AN.src);
+    const ac = new AbortController();
+    const to = setTimeout(() => ac.abort(), 900000);
+    let r;
+    try {
+      r = await fetch(url + '/animate', { method: 'POST', signal: ac.signal, headers: { 'Content-Type': 'application/json', 'X-Sprite-Key': key }, body: JSON.stringify(body) });
+    } finally { clearTimeout(to); }
+    if (r.status === 401) throw new Error('Motor anahtarı yanlış');
+    if (!r.ok) throw new Error('Animasyon motoru hatası ' + r.status + ' ' + (await r.text()).slice(0, 200));
+    const d = await r.json();
+    AN.frames = [];
+    for (const f of d.frames) {
+      const bin = Uint8Array.from(atob(f), ch => ch.charCodeAt(0));
+      AN.frames.push(await blobToCanvas(new Blob([bin], { type: 'image/png' })));
+    }
+    if (!AN.src && d.reference) {
+      const bin = Uint8Array.from(atob(d.reference), ch => ch.charCodeAt(0));
+      AN.src = await blobToCanvas(new Blob([bin], { type: 'image/png' }));
+    }
+    if (!AN.name || AN.name === 'sprite') AN.name = (tarif || 'karakter').split(',')[0].slice(0, 30);
+    renderAnimStrip();
+    playAnim();
+    toast(`${AN.frames.length} kare hazır (${Math.round(d.seconds)} sn). Beğendiysen "Sheet'e ekle".`, 5000);
+  } catch (e) {
+    toast('Olmadı: ' + (e.name === 'AbortError' ? 'zaman aşımı' : e.message), 6000);
+  } finally {
+    clearInterval(sayac);
+    b.disabled = false; b.textContent = eski;
+  }
+}
 
 function animTransform(kind, t, i, n, dir, w, h) {
   // dönüş: {dx, dy, rot, sx, sy, alpha, flash}
@@ -1139,7 +1214,7 @@ function playAnim() {
     k++;
   }, 1000 / fps);
 }
-['#animTur', '#animKare', '#animYon'].forEach(s => $(s).onchange = () => AN.src && buildAnimation());
+['#animTur', '#animKare', '#animYon'].forEach(s => $(s).onchange = () => AN.src && $('#animYontem').value !== 'yz' && buildAnimation());
 $('#animFps').onchange = playAnim;
 $('#btnAnimSheet').onclick = () => {
   if (!AN.frames.length) return toast('Önce animasyon oluştur');

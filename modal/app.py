@@ -24,6 +24,8 @@ Uç nokta (POST /generate):
 POST /edit   {"image", "prompt", "strength", "mask"?, "reference"?} → metinle düzenleme / boyayarak (inpaint)
 POST /rembg  {"image": "<base64>"} → {"image": "<base64 RGBA png>"}
 """
+from pathlib import Path
+
 import modal
 
 APP_NAME = "sprite-atolye"
@@ -151,6 +153,17 @@ def download_check():
 
     snapshot_download(SEG_MODEL, allow_patterns=["*.json", "*.txt", "*.safetensors", "*.bin"])
     snapshot_download(CLIP_MODEL, allow_patterns=["*.json", "*.txt", "*.safetensors"])
+
+
+# Yapay zekâ animasyonu (madde 2): poz ControlNet'i. xinsir (Apache-2.0, ticari serbest). thibaud/controlnet-openpose-sdxl
+# "other" lisanslı (OpenPose'un ticari olmayan lisansına bağlı) → kullanılmadı (23 Kasım, model kartı kontrolü).
+CN_POSE = "xinsir/controlnet-openpose-sdxl-1.0"
+
+
+def download_cn():
+    from huggingface_hub import snapshot_download
+
+    snapshot_download(CN_POSE, allow_patterns=["config.json", "diffusion_pytorch_model.safetensors"])
 
 
 def download_ipa():
@@ -360,6 +373,8 @@ image = (
     .run_function(download_rembg)
     .run_function(download_ipa)
     .run_function(download_check)
+    .run_function(download_cn)
+    .add_local_file(Path(__file__).parent / "pozlar.py", "/root/pozlar.py")
 )
 
 app = modal.App(APP_NAME, image=image)
@@ -1122,5 +1137,201 @@ class Motor:
             buf = io.BytesIO()
             out.save(buf, format="PNG")
             return {"image": base64.b64encode(buf.getvalue()).decode(), "grid": k, "seconds": round(time.time() - t0, 2)}
+
+        return api
+
+
+# ---------------- Yapay zekâ animasyonu (madde 2) ----------------
+# Kodla çizilen poz iskeletleri (pozlar.py) + OpenPose ControlNet + IP-Adapter. "Yan yana" yöntem: 2 kat genişlikte
+# tuvalin solunda referans karakter (sabit), sağında yeni kare (inpaint) → model aynı resimdeki karakteri kopyalar.
+# 23 Kasım denemesi (anim_dene.yml): bağımsız kareler pozu tutturdu ama kıyafet kareden kareye değişti; yan yana
+# yöntemde 8 karenin hepsi aynı kıyafet/oran. T4'te bellek yetmedi (SDXL + ControlNet + IP-Adapter ≈ 12,5 GB) → L4.
+ANIM_TURLER = {"bekleme": 4, "yuru": 8, "kos": 8, "saldir": 8, "zipla": 6, "hasar": 4}
+
+
+@app.cls(
+    gpu="L4",
+    cpu=4.0,
+    timeout=900,
+    scaledown_window=60,  # 60 sn boşta kalınca kapanır
+    max_containers=1,
+    secrets=[modal.Secret.from_name("sprite-key")],
+)
+class Animator:
+    @modal.enter()
+    def load(self):
+        import torch
+        from diffusers import (AutoencoderKL, ControlNetModel, DPMSolverMultistepScheduler,
+                               StableDiffusionXLControlNetInpaintPipeline, StableDiffusionXLControlNetPipeline)
+
+        vae = AutoencoderKL.from_pretrained(VAE, torch_dtype=torch.float16)
+        cn = ControlNetModel.from_pretrained(CN_POSE, torch_dtype=torch.float16)
+        pipe = StableDiffusionXLControlNetPipeline.from_pretrained(BASE, vae=vae, controlnet=cn, torch_dtype=torch.float16,
+                                                                   variant="fp16", use_safetensors=True)
+        pipe.scheduler = DPMSolverMultistepScheduler.from_config(
+            pipe.scheduler.config, use_karras_sigmas=True, algorithm_type="dpmsolver++", solver_type="midpoint",
+            final_sigmas_type="zero", timestep_spacing="leading", steps_offset=1)
+        pipe.load_lora_weights(PIXEL_LORA, weight_name=PIXEL_LORA_FILE, adapter_name="pixel")
+        self.loras = {}
+        for ad, (repo, dosya, w, tetik, _l) in STYLE_LORAS.items():
+            try:
+                pipe.load_lora_weights(repo, weight_name=dosya, adapter_name=ad)
+                self.loras[ad] = (w, tetik)
+            except Exception as e:  # noqa
+                print(f"[lora] {ad} yüklenemedi: {e}", flush=True)
+        pipe.load_ip_adapter(IPA_REPO, subfolder="sdxl_models", weight_name=IPA_FILE, image_encoder_folder="models/image_encoder")
+        pipe.to("cuda")
+        pipe.enable_vae_slicing()
+        pipe.enable_vae_tiling()
+        self.pipe = pipe
+        self.inp = StableDiffusionXLControlNetInpaintPipeline.from_pipe(pipe)
+        from rembg import new_session
+
+        try:
+            self.rb = new_session(REMBG_MODEL)
+        except Exception:  # noqa
+            self.rb = new_session("isnet-general-use")
+        print("[animator] hazır, GPU bellek", round(torch.cuda.memory_allocated() / 1e9, 1), "GB", flush=True)
+
+    def _stil(self, style, lora, lora_weight=None):
+        adlar, ag = ["pixel"], [1.0 if style == "pixel" else 0.0]
+        if lora in self.loras:
+            adlar.append(lora)
+            ag.append(float(lora_weight) if lora_weight is not None else self.loras[lora][0])
+        self.pipe.set_adapters(adlar, adapter_weights=ag)
+
+    def _kes(self, im):
+        """Arka planı sil + kalıntıları temizle (düz açık gri zemin)."""
+        import numpy as np
+        from rembg import remove
+
+        rgb = np.array(im.convert("RGB"))
+        bg = border_bg(rgb)
+        raw = remove(im.convert("RGB"), session=self.rb, post_process_mask=True)
+        out = drop_debris(defringe(fill_holes(rgb, raw, bg), bg=bg))
+        alan = lambda x: int((np.array(x)[..., 3] > 0).sum())
+        return out if alan(out) >= 0.6 * max(1, alan(raw)) else drop_debris(raw)
+
+    def _yan_yana(self, ref, sol_poz, sag_poz, prompt, negative, seed, ip, W, H, steps=22):
+        """Solda referans (sabit), sağda pozdaki yeni kare → sağ yarı."""
+        import torch
+        from PIL import Image
+
+        tuval = Image.new("RGB", (2 * W, H), (200, 200, 200)); tuval.paste(ref, (0, 0))
+        kontrol = Image.new("RGB", (2 * W, H)); kontrol.paste(sol_poz, (0, 0)); kontrol.paste(sag_poz, (W, 0))
+        maske = Image.new("L", (2 * W, H), 0); maske.paste(255, (W, 0, 2 * W, H))
+        self.inp.set_ip_adapter_scale(ip)
+        out = self.inp(prompt=prompt, negative_prompt=negative, image=tuval, mask_image=maske, control_image=kontrol,
+                       width=2 * W, height=H, strength=1.0, num_inference_steps=steps, guidance_scale=6.0,
+                       generator=torch.Generator("cuda").manual_seed(seed), ip_adapter_image=ref,
+                       controlnet_conditioning_scale=1.0).images[0]
+        return out.crop((W, 0, 2 * W, H))
+
+    def animate(self, body):
+        import base64
+        import io
+        import time
+
+        import numpy as np
+        import torch
+        from PIL import Image
+
+        import pozlar
+
+        t0 = time.time()
+        tur = str(body.get("anim", "yuru"))
+        if tur not in ANIM_TURLER:
+            raise ValueError(f"animasyon türü: {list(ANIM_TURLER)}")
+        n = int(body.get("n") or ANIM_TURLER[tur])
+        n = max(2, min(12, n))
+        seed = int(body.get("seed", 7)) % (2**31)
+        style = str(body.get("style", "other"))
+        lora = body.get("lora") if body.get("lora") in self.loras else None
+        self._stil(style, lora, body.get("lora_weight"))
+        tarif = str(body.get("prompt", "")).strip()[:900] or "game character"
+        if style == "pixel" and "pixel" not in tarif.lower():
+            tarif = "pixel art, " + tarif
+        if lora:
+            tarif = f"{tarif}, {self.loras[lora][1]}"
+        W, H = 768, 1024
+        neg = str(body.get("negative") or "text, watermark, blurry, cropped, frame, border, scenery, landscape, ground shadow, "
+                  "cast shadow, deformed, extra limbs, extra arms, extra legs, bad anatomy, floating objects")[:500]
+        tek = f"{tarif}, solo, one single character, full body, side view, facing right, profile, isolated on a plain flat solid light gray background"
+        iki = (f"two side-by-side pictures of the exact same character, identical outfit and colors, {tarif}, full body, "
+               "side view, facing right, isolated on a plain flat solid light gray background")
+        dur = pozlar.ciz(pozlar.kareler("bekleme")[0], W, H)
+        gri = Image.new("RGB", (224, 224), (128, 128, 128))
+        # 1) yandan referans: kullanıcının görseli varsa önce aynı karakterin yandan duruşu çizilir (görsel önden olabilir)
+        ref_b64 = body.get("image") or body.get("reference")
+        if ref_b64:
+            im = Image.open(io.BytesIO(base64.b64decode(str(ref_b64).split(",")[-1]))).convert("RGBA")
+            bb = im.getbbox()
+            if bb:
+                im = im.crop(bb)
+            im.thumbnail((int(W * 0.9), int(H * 0.88)), Image.LANCZOS)
+            k = Image.new("RGBA", (W, H), (200, 200, 200, 255))
+            k.alpha_composite(im, ((W - im.width) // 2, int(H * 0.94) - im.height))
+            kullanici = k.convert("RGB")
+            ref = self._yan_yana(kullanici, Image.new("RGB", (W, H)), dur, iki, neg, seed, 0.7, W, H, steps=25)
+        else:
+            self.pipe.set_ip_adapter_scale(0.0)
+            ref = self.pipe(prompt=tek, negative_prompt=neg, image=dur, num_inference_steps=25, guidance_scale=6.0,
+                            width=W, height=H, generator=torch.Generator("cuda").manual_seed(seed), ip_adapter_image=gri,
+                            controlnet_conditioning_scale=0.9).images[0]
+        t_ref = round(time.time() - t0, 1)
+        # 2) kareler (yan yana yöntem)
+        kareler = []
+        for p in pozlar.kareler(tur, n):
+            kareler.append(self._yan_yana(ref, dur, pozlar.ciz(p, W, H), iki, neg, seed, float(body.get("ref_scale", 0.6)), W, H))
+        t_kare = round(time.time() - t0 - t_ref, 1)
+        # 3) temizlik + hizalama: hepsi aynı kutuyla kırpılır (zıplama/eğilme gibi hareketler korunur)
+        kesik = [self._kes(k) for k in kareler] if body.get("auto", True) else [k.convert("RGBA") for k in kareler]
+        kutular = [k.getbbox() for k in kesik if k.getbbox()]
+        if kutular:
+            pad = 6
+            x0 = max(0, min(b[0] for b in kutular) - pad); y0 = max(0, min(b[1] for b in kutular) - pad)
+            x1 = min(W, max(b[2] for b in kutular) + pad); y1 = min(H, max(b[3] for b in kutular) + pad)
+            kesik = [k.crop((x0, y0, x1, y1)) for k in kesik]
+        if int(body.get("yon", 1)) < 0:
+            kesik = [k.transpose(Image.FLIP_LEFT_RIGHT) for k in kesik]
+
+        def b64(im):
+            buf = io.BytesIO(); im.save(buf, format="PNG"); return base64.b64encode(buf.getvalue()).decode()
+
+        r = {"frames": [b64(k) for k in kesik], "reference": b64(ref), "anim": tur, "n": n,
+             "seconds": round(time.time() - t0, 2), "sure": {"referans": t_ref, "kareler": t_kare}}
+        if body.get("poz"):
+            r["poses"] = [b64(pozlar.ciz(p, 192, 256)) for p in pozlar.kareler(tur, n)]
+        return r
+
+    @modal.asgi_app()
+    def web(self):
+        import os
+
+        from fastapi import FastAPI, Header, HTTPException
+        from fastapi.middleware.cors import CORSMiddleware
+
+        api = FastAPI()
+        api.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["*"])
+        key = os.environ.get("SPRITE_KEY", "")
+
+        @api.get("/")
+        def health():
+            return {"ok": True, "motor": "animator (OpenPose ControlNet + IP-Adapter)", "gpu": "L4", "turler": ANIM_TURLER}
+
+        @api.post("/animate")
+        def animate(body: dict, x_sprite_key: str = Header(default="")):
+            if key and x_sprite_key != key:
+                raise HTTPException(status_code=401, detail="Anahtar yanlış")
+            try:
+                return self.animate(body)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            except Exception as e:  # noqa
+                import traceback
+
+                iz = traceback.format_exc()
+                print(iz, flush=True)
+                raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)[:300]} | {iz[-700:]}")
 
         return api

@@ -54,9 +54,12 @@ jobs:
         run: |
           set -o pipefail
           modal deploy modal/app.py 2>&1 | tee deploy.log
-          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.modal\.run' deploy.log | head -1)
+          URL=$(grep -oE 'https://[a-zA-Z0-9.-]+motor-web[a-zA-Z0-9.-]*\.modal\.run' deploy.log | head -1)
+          AURL=$(grep -oE 'https://[a-zA-Z0-9.-]+animator-web[a-zA-Z0-9.-]*\.modal\.run' deploy.log | head -1)
           echo "MOTOR_URL=$URL" >> "$GITHUB_ENV"
+          echo "ANIM_URL=$AURL" >> "$GITHUB_ENV"
           echo "### Motor adresi: $URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Animasyon motoru: $AURL" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Deneme üretimi (tüm özellikler)
         if: steps.chk.outputs.ok == 'true' && (github.event_name == 'push' || inputs.test)

@@ -159,6 +159,27 @@ def yuz():
 
 
 dene("yüz düzeltme", yuz)
+def animasyon():
+    # Yapay zekâ animasyonu (madde 2): ana testteki pixel zombi (önden) referans → yandan yürüme (ucuz: 4 kare)
+    au = os.environ.get("ANIM_URL", "").rstrip("/")
+    if not au:
+        yaz("⚠️ Animasyon motoru adresi yok (ANIM_URL), test atlandı"); return
+    n = int(os.environ.get("ANIM_N", "4"))
+    body = {"anim": "yuru", "n": n, "seed": 7, "style": "pixel", "prompt": "green zombie, 2D game enemy", "image": ana["img"], "poz": True}
+    req = urllib.request.Request(au + "/animate", data=json.dumps(body).encode(), headers={"Content-Type": "application/json", "X-Sprite-Key": KEY})
+    try:
+        d = json.load(urllib.request.urlopen(req, timeout=900))
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"HTTP {e.code}: {e.read().decode(errors='replace')[:800]}")
+    assert len(d["frames"]) == n, f"kare sayısı {len(d['frames'])} != {n}"
+    kaydet("anim_referans", d["reference"])
+    for i, f in enumerate(d["frames"]):
+        kaydet(f"anim_yuru_{i}", f)
+    yaz(f"Yapay zekâ animasyonu: {n} kare · GPU {d['seconds']} sn ({d.get('sure')})")
+
+
+if "img" in ana:
+    dene("yapay zekâ animasyonu", animasyon)
 dene("doku", doku)
 dene("ekstra kalite", hires)
 dene("dersler", dersler)

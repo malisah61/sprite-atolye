@@ -165,8 +165,19 @@
 <!-- ANİMASYON -->
 <section id="anim" class="tab">
   <div class="card">
-    <p class="hint">Tek bir sprite'tan kodla animasyon üretir: kareler her zaman tutarlıdır (yapay zekâ her karede karakteri değiştirmez).</p>
+    <p class="hint">Tek bir sprite'tan animasyon: <b>Kodla</b> anında ve ücretsiz (resim sallanır/eğilir), <b>Yapay zekâ ile</b> her kare yeniden çizilir (gerçek adım atma, kol sallama; Modal motoru, 8 kare ≈ 3-5 dk).</p>
     <div class="row"><button id="btnAnimSec">Galeriden sprite seç</button></div>
+    <div class="grid2">
+      <div><label>Yöntem</label>
+        <select id="animYontem"><option value="kod">Kodla (hızlı)</option><option value="yz">Yapay zekâ ile (gerçek hareket)</option></select></div>
+      <div class="yzAlan" hidden><label>Stil</label>
+        <select id="animStil"><option value="hd">HD</option><option value="pixel">Pixel</option><option value="cartoon">Çizgi film</option><option value="chibi">Chibi</option><option value="dark">Karanlık</option></select></div>
+    </div>
+    <div class="yzAlan" hidden>
+      <label>Karakter tarifi (yapay zekâ için; Türkçe yazabilirsin)</label>
+      <input id="animTarif" placeholder="ör. yeşil bereli İngiliz komando, kamuflaj ceket, elinde tüfek">
+      <p class="hint">Karakter yandan, sağa bakarak çizilir (sola bakan için Yön: Sola). Seçtiğin sprite referans olur — kıyafet ve renkler ondan alınır.</p>
+    </div>
     <div class="grid2">
       <div><label>Hareket</label>
         <select id="animTur">
@@ -175,6 +186,7 @@
           <option value="run">Koşma</option>
           <option value="attack">Saldırı (ileri atılma)</option>
           <option value="hit">Hasar alma</option>
+          <option value="jump">Zıplama (yapay zekâ)</option>
           <option value="death">Ölüm</option>
           <option value="float">Süzülme (uçan/hayalet)</option>
           <option value="spin">Dönme (eşya/para)</option>
