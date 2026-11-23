@@ -1080,6 +1080,70 @@ async function canvasB64(c) {
   const blob = await canvasToBlob(c);
   return new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
 }
+/* Ateş etme: yapay zekâ kareleri neredeyse aynı pozda çıkıyor (oynatınca duruyor gibi). Kodla gerçek ateş hissi:
+   namlu ucunu bulur, ateş karesinde namlu alevi çizer, üst gövdeyi birkaç piksel geri teptirir, sonra yerine döndürür.
+   GPU harcamaz. dir: +1 sağa, -1 sola bakıyor. */
+function namluUcu(c, dir) {
+  const w = c.width, h = c.height, d = c.getContext('2d').getImageData(0, 0, w, h).data;
+  const y0 = Math.floor(h * 0.12), y1 = Math.floor(h * 0.62);
+  for (let k = 0; k < w; k++) {
+    const x = dir > 0 ? w - 1 - k : k;
+    const ys = [];
+    for (let y = y0; y < y1; y++) if (d[(y * w + x) * 4 + 3] > 128) ys.push(y);
+    if (ys.length) return { x, y: ys[Math.floor(ys.length / 2)] };
+  }
+  return null;
+}
+function geriTep(c, dx, belY) {
+  // üst gövde geriye yaslanır: omuzlar/kollar en çok, bel hiç kaymaz (dikiş yırtığı olmasın)
+  const o = document.createElement('canvas'); o.width = c.width; o.height = c.height;
+  const g = o.getContext('2d'); g.imageSmoothingEnabled = false;
+  g.drawImage(c, 0, belY, c.width, c.height - belY, 0, belY, c.width, c.height - belY);
+  const adim = 2;
+  for (let y = 0; y < belY; y += adim) {
+    const k = Math.min(1, (belY - y) / (belY * 0.6));
+    g.drawImage(c, 0, y, c.width, adim, Math.round(dx * k), y, c.width, adim);
+  }
+  return o;
+}
+function namluAlevi(c, uc, dir, boy, pixel, olcek = 1) {
+  const g = c.getContext('2d'), p = pixel ? Math.max(2, Math.round(boy / 96)) : 1;
+  const r = Math.max(4, Math.round(boy * 0.06 * olcek));
+  const kat = [[1.0, '#ff7a1a'], [0.68, '#ffc21a'], [0.36, '#fff6c8']];
+  g.save(); g.imageSmoothingEnabled = false;
+  for (const [k, renk] of kat) {
+    g.fillStyle = renk;
+    const R = r * k;
+    for (let yy = -R; yy <= R; yy += p) {
+      for (let xx = 0; xx <= R * 1.9; xx += p) {
+        // namlu yönünde uzayan, ucu sivri alev (elmas + yıldız ışınları)
+        const e = Math.abs(yy) / R + xx / (R * 1.9);
+        const isin = Math.abs(yy) < p * 1.1 && xx < R * 2.3;
+        if (e <= 1 || isin) g.fillRect(Math.round(uc.x + dir * (xx - p)), Math.round(uc.y + yy), p, p);
+      }
+    }
+  }
+  g.restore();
+}
+function atesEfekti(frames, dir, pixel) {
+  const n = frames.length;
+  if (n < 2) return frames;
+  const uc = namluUcu(frames[0], dir);
+  if (!uc) return frames;
+  const boy = frames[0].height, belY = Math.round(boy * 0.5);
+  const ates = Math.max(1, Math.round(n * 0.25));             // ateş karesi
+  const tep = Math.max(2, Math.round(boy * 0.03));
+  return frames.map((f, i) => {
+    let k = 0;
+    if (i === ates) k = 1; else if (i === ates + 1) k = 0.6; else if (i === ates + 2 && n >= 6) k = 0.25;
+    if (!k) return f;
+    const o = geriTep(f, -dir * Math.round(tep * k), belY);
+    const u = namluUcu(o, dir) || uc;
+    if (i === ates) namluAlevi(o, u, dir, boy, pixel);
+    else if (i === ates + 1) namluAlevi(o, u, dir, boy, pixel, 0.5);   // sönen alev
+    return o;
+  });
+}
 async function animateAI() {
   const kind = $('#animTur').value, tur = AI_ANIM[kind];
   if (!tur) return toast('Bu hareket yapay zekâ ile henüz yok (bekleme, yürüme, koşma, saldırı, ateş, hasar, zıplama var). Kodla deneyebilirsin.', 5000);
@@ -1107,6 +1171,7 @@ async function animateAI() {
       const bin = Uint8Array.from(atob(f), ch => ch.charCodeAt(0));
       AN.frames.push(await blobToCanvas(new Blob([bin], { type: 'image/png' })));
     }
+    if (tur === 'ates') AN.frames = atesEfekti(AN.frames, +$('#animYon').value < 0 ? -1 : 1, stil === 'pixel');
     if (!AN.src && d.reference) {
       const bin = Uint8Array.from(atob(d.reference), ch => ch.charCodeAt(0));
       AN.src = await blobToCanvas(new Blob([bin], { type: 'image/png' }));
