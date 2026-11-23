@@ -1,0 +1,71 @@
+name: Animasyon üret (yapay zekâ)
+
+# Canlı animasyon motoruyla (/animate) kare kare animasyon: kareler + sprite sayfası + GIF → deneme-sonuclari/animasyon_uretim/
+on:
+  workflow_dispatch:
+    inputs:
+      ad:
+        description: 'Dosya adı'
+        default: 'komando'
+      turler:
+        description: 'Virgülle: bekleme,yuru,kos,saldir,zipla,hasar'
+        default: 'yuru'
+      tarif:
+        description: 'Karakter tarifi (İngilizce)'
+        default: 'WW2 British commando soldier, adult man, green beret, dark green denison camouflage smock, khaki trousers, black boots, holding a rifle, high quality 2D game art, hand painted, detailed shading'
+      stil:
+        description: 'pixel veya other'
+        default: 'other'
+      lora:
+        description: 'boş / cartoon / chibi'
+        default: ''
+      n:
+        description: 'Kare sayısı (boş = türün varsayılanı)'
+        default: ''
+      seed:
+        default: '7'
+      referans:
+        description: 'İsteğe bağlı: deneme-sonuclari dalındaki referans görsel yolu'
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  uret:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ANIM_URL: https://malisah61--sprite-atolye-animator-web.us-east.modal.run
+      SPRITE_KEY: ${{ secrets.SPRITE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet pillow
+      - name: Referansı getir
+        if: ${{ inputs.referans != '' }}
+        env:
+          IN_REF: ${{ inputs.referans }}
+        run: |
+          git fetch --depth 1 origin deneme-sonuclari
+          git show "FETCH_HEAD:$IN_REF" > /tmp/referans.png
+      - name: Üret
+        env:
+          TARIF: ${{ inputs.tarif }}
+          STIL: ${{ inputs.stil }}
+          LORA: ${{ inputs.lora }}
+          N: ${{ inputs.n }}
+          SEED: ${{ inputs.seed }}
+          IN_AD: ${{ inputs.ad }}
+          IN_TURLER: ${{ inputs.turler }}
+        run: python3 modal/anim_istek.py "$IN_AD" "$IN_TURLER" /tmp/referans.png
+      - name: Sonuçları kaydet (deneme-sonuclari dalı)
+        if: always()
+        run: |
+          ls /tmp/out/* >/dev/null 2>&1 || exit 0
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          for i in 1 2 3; do
+            git fetch origin deneme-sonuclari && git checkout -f -B deneme-sonuclari origin/deneme-sonuclari
+            D="animasyon_uretim/$(date -u +%Y%m%d-%H%M)"; mkdir -p "$D" && cp /tmp/out/* "$D/"
+            git add animasyon_uretim && git commit -qm "Animasyon üretimi $D" && git push -q origin deneme-sonuclari && break
+            sleep 5
+          done
