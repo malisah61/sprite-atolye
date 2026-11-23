@@ -1,0 +1,16 @@
+{
+ "ad": "beden_kerberos",
+ "tarif": "Cerberus, one huge black hellhound body with three snarling dog heads side by side on three necks, fiery orange eyes, spiked collars, flames, pixel art, full body 16-bit SNES JRPG battle sprite with chunky proportions, short and stocky, big head about one third of the body height, standing three-quarter view facing right, whole body visible from head to feet, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.939,
+  0.934,
+  0.828
+ ],
+ "gpu_sn": 138.33,
+ "toplam_sn": 848,
+ "dersler": [],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/kerberos.png"
+}
