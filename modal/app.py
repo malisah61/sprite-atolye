@@ -384,7 +384,7 @@ app = modal.App(APP_NAME, image=image)
     gpu="T4",
     cpu=4.0,  # arka plan silme (BiRefNet) CPU'da çalışır; 4 çekirdekle ~5-10 sn
     timeout=600,
-    scaledown_window=90,  # 90 sn boşta kalınca kapanır → kredi yemez
+    scaledown_window=180,  # 3 dk boşta kalınca kapanır (art arda üretimlerde soğuk başlangıç olmasın; boşta ~0,03 $)
     max_containers=1,     # aynı anda tek GPU → bütçe güvende
     secrets=[modal.Secret.from_name("sprite-key")],
 )

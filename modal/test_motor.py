@@ -51,16 +51,21 @@ def dene(ad, fn):
 
 print(urllib.request.urlopen(URL + "/", timeout=900).read().decode())
 ana = {}
+# 23 Kasım: her gönderimde tam test ~30-50 dk sürüp ~0,3 $ yakıyordu → varsayılan HIZLI duman testi
+# (üretim + düzenleme + 4 karelik animasyon, ~5-8 dk). Tam test: modal.yml'yi elle "tam" ile çalıştır.
+TAM = os.environ.get("TEST_KIP", "hizli") == "tam"
+print("Test kipi:", "TAM" if TAM else "HIZLI (duman)", flush=True)
 
 
 def uret():
     d, s = post("/generate", {"prompt": "pixel art, green zombie, solo, one single character alone, full body 2D game character, front view, plain flat solid medium gray background",
-                              "seed": 42, "n": 2, "width": 832, "height": 1216, "style": "pixel", "auto": True})
+                              "seed": 42, "n": 2 if TAM else 1, "width": 832, "height": 1216, "style": "pixel", "auto": True})
     for k, im in enumerate(d["images"]):
         kaydet(f"1_{k}", im)
     ana["img"] = d["images"][0]
     pu = d.get("puan") or []
-    assert len(pu) == 2 and pu[0] >= pu[1], f"en iyisini seç çalışmadı: {pu}"
+    if TAM:
+        assert len(pu) == 2 and pu[0] >= pu[1], f"en iyisini seç çalışmadı: {pu}"
     yaz(f"Üretim: {len(d['images'])} görsel, GPU {d['seconds']} sn, toplam {s} sn · en iyisi başta, puanlar {pu}")
 
 
@@ -101,8 +106,9 @@ def doku():
 
 dene("üretim", uret)
 if "img" in ana:
-    dene("referans", referans)
     dene("düzenleme", duzenle)
+if "img" in ana and TAM:
+    dene("referans", referans)
     dene("boyayarak düzenleme", boya)
 def karisik():
     d, s = post("/generate", {"prompt": "long snake body with no legs and no arms, coiled scaly tail, monkey head with red eyes and fangs, solo, one single creature alone, full body 2D game enemy, high quality 2D game art, side view, simple background, isolated on a plain flat solid medium gray background",
@@ -165,7 +171,6 @@ def yuz():
     yaz(f"Yüz düzeltme (çizgi film kadın): {d2.get('yuz')} · GPU {d2['seconds']} sn")
 
 
-dene("yüz düzeltme", yuz)
 def animasyon():
     # Yapay zekâ animasyonu (madde 2): ana testteki pixel zombi (önden) referans → yandan yürüme (ucuz: 4 kare)
     au = os.environ.get("ANIM_URL", "").rstrip("/")
@@ -204,9 +209,11 @@ def animasyon():
 
 if "img" in ana:
     dene("yapay zekâ animasyonu", animasyon)
-dene("doku", doku)
-dene("ekstra kalite", hires)
-dene("dersler", dersler)
-dene("stil LoRA", lora_cizgi)
-dene("karışık yaratık", karisik)
+if TAM:
+    dene("yüz düzeltme", yuz)
+    dene("doku", doku)
+    dene("ekstra kalite", hires)
+    dene("dersler", dersler)
+    dene("stil LoRA", lora_cizgi)
+    dene("karışık yaratık", karisik)
 sys.exit(1 if hatalar else 0)

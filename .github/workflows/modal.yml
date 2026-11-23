@@ -10,6 +10,10 @@ on:
         description: 'Kurulumdan sonra deneme üretimi yap'
         type: boolean
         default: true
+      tam:
+        description: 'Tam test (tüm özellikler, ~30-50 dk, ~0,3 $). Kapalıysa hızlı duman testi (~5-8 dk)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -67,8 +71,10 @@ jobs:
           echo "### Motor adresi: $URL" >> "$GITHUB_STEP_SUMMARY"
           echo "### Animasyon motoru: $AURL" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Deneme üretimi (tüm özellikler)
+      - name: Deneme üretimi (hızlı duman testi; elle "tam" seçilirse tüm özellikler)
         if: steps.chk.outputs.ok == 'true' && (github.event_name == 'push' || inputs.test)
+        env:
+          TEST_KIP: ${{ inputs.tam && 'tam' || 'hizli' }}
         run: |
           pip install --quiet pillow
           python3 modal/test_motor.py
