@@ -250,6 +250,54 @@ def drop_debris(im, min_frac=0.03):
     return Image.fromarray(a, "RGBA")
 
 
+def ayak_golgesi_sil(im, bg, bant=0.17):
+    """24 Kasım (2. kez görüldü: zombi testleri + komando saldırı animasyonu): ayak dibinde açık gri yer gölgesi kalıyor.
+    defringe kenardan en fazla 12 px yiyebildiği için geniş gölge lekesi duruyordu. Burada sadece figürün EN ALT
+    şeridinde (boyun %17'si), arka planın soluk/gölge tonundaki (düşük doygunluk, arka plandan biraz koyu) ve dışarıya
+    değen parçalar silinir. Siyah çizme, renkli kıyafet korunur."""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+
+    if bg is None:
+        return im
+    a = np.array(im.convert("RGBA"))
+    al = a[..., 3] > 0
+    satirlar = np.where(al.any(axis=1))[0]
+    if len(satirlar) < 20:
+        return im
+    y0, y1 = int(satirlar[0]), int(satirlar[-1])
+    alt = int(y1 - bant * (y1 - y0))
+    rgb = a[..., :3].astype(np.int16)
+    mx, mn = rgb.max(-1), rgb.min(-1)
+    sat = (mx - mn) / np.maximum(mx, 1)
+    lum = rgb.mean(-1)
+    lum_bg = float(np.mean(bg))
+    golge = al & (sat < 0.13) & (lum < lum_bg * 0.97) & (lum > lum_bg * 0.6)
+    golge[:alt] = False
+    if not golge.any():
+        return im
+    lab, n = ndimage.label(golge, structure=np.ones((3, 3)))
+    dis = ndimage.binary_dilation(~al, iterations=2)  # şeffaf dışarıya değen
+    alan_min = max(300, 0.002 * al.sum())
+    sil = np.zeros_like(golge)
+    for i, sl in enumerate(ndimage.find_objects(lab), start=1):
+        parca = lab[sl] == i
+        h, w = parca.shape
+        # gölge: yeterince büyük, ince değil (kılıç ucu/namlu değil), düz (parlak çizme yansıması gibi dokulu değil)
+        if parca.sum() < alan_min or min(h, w) < 12 or not (dis[sl] & parca).any():
+            continue
+        if sl[0].start <= alt + 1:  # şeridin üstüne taşıyor → yukarı devam eden kıyafet (etek/cüppe), gölge değil
+            continue
+        if float(lum[sl][parca].std()) > 14:
+            continue
+        sil[sl] |= parca
+    if not sil.any():
+        return im
+    a[sil, 3] = 0
+    return drop_debris(Image.fromarray(a, "RGBA"))
+
+
 def fill_holes(orig_rgb, cut, bg):
     """Karakterin içinde yanlışlıkla silinen yerleri (beyaz gömlek gibi) geri getirir.
     İçeride kalan şeffaf boşluk arka plan rengine benzemiyorsa geri doldurulur.
@@ -502,7 +550,7 @@ class Motor:
         raw = remove(im.convert("RGB"), session=self.rb, post_process_mask=True)
         out = fill_holes(rgb, raw, bg)
         self.last_bg = bg
-        final = drop_debris(defringe(out, bg=bg))
+        final = ayak_golgesi_sil(drop_debris(defringe(out, bg=bg)), bg)
         # güvenlik: temizlik figürün büyük kısmını yediyse (arka plan rengi karaktere çok benziyorsa) ham kesime dön
         area = lambda x: int((np.array(x)[..., 3] > 0).sum())
         if area(final) < 0.6 * max(1, area(out)):
@@ -1318,7 +1366,7 @@ class Animator:
         rgb = np.array(im.convert("RGB"))
         bg = border_bg(rgb)
         raw = remove(im.convert("RGB"), session=self.rb, post_process_mask=True)
-        out = drop_debris(defringe(fill_holes(rgb, raw, bg), bg=bg))
+        out = ayak_golgesi_sil(drop_debris(defringe(fill_holes(rgb, raw, bg), bg=bg)), bg)
         alan = lambda x: int((np.array(x)[..., 3] > 0).sum())
         return out if alan(out) >= 0.6 * max(1, alan(raw)) else drop_debris(raw)
 
@@ -1336,6 +1384,24 @@ class Animator:
                        generator=torch.Generator("cuda").manual_seed(seed), ip_adapter_image=ref,
                        controlnet_conditioning_scale=1.0).images[0]
         return out.crop((W, 0, 2 * W, H))
+
+    def _uclu(self, ref, onceki, dur, onceki_poz, yeni_poz, prompt, negative, seed, ip, W, H, steps=22):
+        """24 Kasım: üçlü tuval — referans | önceki kare | yeni kare (inpaint). Model silahı/kıyafeti hem referanstan hem
+        bir önceki kareden kopyalar. anim_dene (saldırı, seed 7) karşılaştırması: yan yana (ikili) yöntemde tüfek
+        kareden kareye değişiyordu (dürbünlü/dürbünsüz, farklı modeller) ve bir karede karakter geriye döndü; üçlüde
+        yön hep doğru, tüfek çoğu karede aynı. Bedel: kare başına ~+60% süre (L4, 8 kare ≈ 270 sn)."""
+        import torch
+        from PIL import Image
+
+        tuval = Image.new("RGB", (3 * W, H), (200, 200, 200)); tuval.paste(ref, (0, 0)); tuval.paste(onceki, (W, 0))
+        kontrol = Image.new("RGB", (3 * W, H)); kontrol.paste(dur, (0, 0)); kontrol.paste(onceki_poz, (W, 0)); kontrol.paste(yeni_poz, (2 * W, 0))
+        maske = Image.new("L", (3 * W, H), 0); maske.paste(255, (2 * W, 0, 3 * W, H))
+        self.inp.set_ip_adapter_scale(ip)
+        out = self.inp(prompt=prompt, negative_prompt=negative, image=tuval, mask_image=maske, control_image=kontrol,
+                       width=3 * W, height=H, strength=1.0, num_inference_steps=steps, guidance_scale=6.0,
+                       generator=torch.Generator("cuda").manual_seed(seed), ip_adapter_image=ref,
+                       controlnet_conditioning_scale=1.15).images[0]
+        return out.crop((2 * W, 0, 3 * W, H))
 
     def animate(self, body):
         import base64
@@ -1397,8 +1463,17 @@ class Animator:
         temizle = body.get("auto", True)
         havuz = ThreadPoolExecutor(max_workers=2)
         isler_k = []
+        zincir = body.get("zincir", True)  # üçlü yöntem (referans + önceki kare); False → eski yan yana
+        uc = (f"three side-by-side pictures of the exact same character, identical outfit, identical weapon and colors, {tarif}, "
+              "full body, side view, facing right, isolated on a plain flat solid light gray background")
+        onceki, onceki_poz = ref, dur
         for p in pozlar_liste:
-            k = self._yan_yana(ref, dur, pozlar.ciz(p, W, H, boy=boy), iki, neg, seed, float(body.get("ref_scale", 0.6)), W, H)
+            pz = pozlar.ciz(p, W, H, boy=boy)
+            if zincir:
+                k = self._uclu(ref, onceki, dur, onceki_poz, pz, uc, neg, seed, float(body.get("ref_scale", 0.5)), W, H)
+                onceki, onceki_poz = k, pz
+            else:
+                k = self._yan_yana(ref, dur, pz, iki, neg, seed, float(body.get("ref_scale", 0.6)), W, H)
             isler_k.append(havuz.submit(self._kes, k) if temizle else None)
             if not temizle:
                 isler_k[-1] = k.convert("RGBA")
@@ -1406,6 +1481,14 @@ class Animator:
         # 3) temizlik + hizalama: hepsi aynı kutuyla kırpılır (zıplama/eğilme gibi hareketler korunur)
         kesik = [x.result() for x in isler_k] if temizle else isler_k
         havuz.shutdown(wait=False)
+        # 24 Kasım: model bazı karelerde karakteri daha büyük çiziyor (saldırıda kareler arası boy farkı) → baş-ayak
+        # boyu pozdan beklenene oranlanıp medyana eşitlenir (ayak tabanı sabit). GPU harcamaz.
+        olcekler = [1.0] * len(kesik)
+        if temizle and body.get("boy_esitle", True):
+            try:
+                kesik, olcekler = pozlar.boy_esitle(kesik, pozlar_liste, W, H, boy=boy)
+            except Exception as e:  # noqa — eşitleme olmazsa kareler olduğu gibi
+                print("[animator] boy eşitleme atlandı:", e, flush=True)
         kutular = [k.getbbox() for k in kesik if k.getbbox()]
         if kutular:
             pad = 6
@@ -1419,7 +1502,8 @@ class Animator:
             buf = io.BytesIO(); im.save(buf, format="PNG"); return base64.b64encode(buf.getvalue()).decode()
 
         r = {"frames": [b64(k) for k in kesik], "reference": b64(ref), "anim": tur, "n": n,
-             "seconds": round(time.time() - t0, 2), "sure": {"referans": t_ref, "kareler": t_kare}}
+             "seconds": round(time.time() - t0, 2), "sure": {"referans": t_ref, "kareler": t_kare},
+             "boy_olcek": [float(o) for o in olcekler], "yontem": "uclu" if zincir else "yan_yana"}
         if body.get("poz"):
             r["poses"] = [b64(pozlar.ciz(p, 192, 256, boy=boy)) for p in pozlar_liste]
         return r

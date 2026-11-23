@@ -204,7 +204,7 @@ def animasyon():
     kaydet("anim_referans", d["reference"])
     for i, f in enumerate(d["frames"]):
         kaydet(f"anim_yuru_{i}", f)
-    yaz(f"Yapay zekâ animasyonu: {n} kare · GPU {d['seconds']} sn ({d.get('sure')})")
+    yaz(f"Yapay zekâ animasyonu: {n} kare · GPU {d['seconds']} sn ({d.get('sure')}) · boy ölçekleri {d.get('boy_olcek')}")
 
 
 if "img" in ana:

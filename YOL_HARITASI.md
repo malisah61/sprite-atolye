@@ -45,7 +45,10 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - İlk teslim: Komando Bölüm 9 karakterleri (alman_dag, alman_muhendis, isci, madenci, komando_nisanci). Süre: karakter başına ~25-35 dk (paralel), GPU ≈ 0,02 $/karakter.
 - Sonraki: diğer oyunlar için 2D hat (yön seti + animasyon sekmesi çıktıları), AJAN_TOKEN gelince otomatik PR.
 
-## 2. ⬜ Yapay zekâ ile gerçek animasyon (OpenPose ControlNet + IP-Adapter, /animate)
+## 2. 🔄 Yapay zekâ ile gerçek animasyon (OpenPose ControlNet + IP-Adapter, /animate)
+- 23 Kasım (gündüz, kullanıcıyla): `pozlar.py` (kodla OpenPose iskeletleri: bekleme, yürü, koş, saldır, ateş, zıpla, hasar), `anim_dene.yml`, canlı "animator" uygulaması (L4; T4'te bellek yetmedi; xinsir/controlnet-openpose-sdxl-1.0 Apache-2.0), "yan yana" yöntem (solda referans, sağda yeni kare), iş kuyruğu (`/is/animate`), sitede Animasyon → "Yapay zekâ ile", `anim_uret.yml`. Ateşte namlu alevi kodla.
+- 24 Kasım (gece): **kare tutarlılığı** — (1) boy eşitleme (GPU'suz, `pozlar.boy_esitle`), (2) üçlü tuval (referans | önceki kare | yeni) varsayılan, sitede "Tutarlı silah/kıyafet" kutusu, (3) ayak dibi gölge temizliği (görsel motoru da). Karşılaştırma: `anim_dene` BCD (saldırı, seed 7) → `deneme-sonuclari/animasyon/20261123-2355/`. Süre: 8 kare yan yana 164 sn → üçlü 268 sn (L4 ≈ 0,06 $/animasyon).
+- Sırada: silahlı karakterler için ayrı saldırı pozları (süngü hamlesi, dipçik), başlık/bere tutarlılığı (tarif başı), arkadan/önden yürüme (madde 4 ile birlikte), 12 karelik akıcı döngüler.
 ## 3. ⬜ Tileset (Wang/blob geçişleri, Godot .tres)
 ## 4. 🔄 Yön seti iyileştirme (arkadan görünüş, 4/8 yön) — Blender yolu (kullanıcı isteği, 22 Kasım akşam)
 - `uc_boyut.yml` (GPU'suz, GitHub Actions, ~9 dk): görsel → **TripoSR** (MIT) ile 3D (.glb/.ply, CPU'da ~1 dk) → **Blender 4.2 LTS** (GPL; çıktılar serbest) ile 4/8 yönden şeffaf render → isteğe bağlı **motorla yeniden boyama** (render = şekil iskeleti, /edit güç 0.55; orijinal = IP-Adapter referansı 0.5).
@@ -70,6 +73,8 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - kararli-v7: 2026-11-22 gece (hi-res fix + BiRefNet öncesi)
 - kararli-v8: 2026-11-22 gece (tek silah + en iyisini seç öncesi)
 - kararli-v9: 2026-11-23 gece (yüz düzeltme öncesi)
+- kararli-v10: 2026-11-23 sabah (animator L4 öncesi — gündüz oturumu)
+- kararli-v11: 2026-11-24 gece (animasyon tutarlılığı öncesi)
 
 ## Gece günlüğü
 - 2026-11-20: 0a başladı — karşılaştırma iş akışı eklendi; DreamShaper deneme motoru açılmadı (3/3 deneme hakkı kullanıldı), canlı motor değişmedi.
@@ -83,6 +88,8 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 
 - 2026-11-22 (gece, kullanıcı isteği): tek silah dersi (tutuş tarifi + CLIP taslak seçimi) + 0e en iyisini seç.
 
+- 2026-11-24 (gece): madde 2 — animasyon kare tutarlılığı (boy eşitleme, üçlü tuval, ayak gölgesi); 1 deneme + 1 kurulum/test. Komando'ya yazma izni yine yok (oturuma bağlı değil).
+
 - 2026-11-23 (gece): 0d — yüz düzeltme (motor + site + test), Komando için komando portreleri (Reilly, Blake) — bu oturumda Komando'ya yazma izni yoktu (add_repo yok, push 403) → `deneme-sonuclari/siparis/komando/portreler-20261123/`.
 
 ## Tahmini Modal harcaması (Kasım 2026)
@@ -93,3 +100,4 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - 22 Kasım: kavalcı üretimleri (4 iş) + 1 kurulum/test → +~0,5 $.
 - 22 Kasım gece: 2 kurulum/test + 1 üretim → +~0,4 $. Kullanıcı isteğiyle +2 kurulum/test (tek silah) → +~0,4 $. Ay toplamı tahmini ~5-6 $ (20 $ sınırının altında).
 - 23 Kasım gece: 2 kurulum/test (~17 dk'lık) + 2 portre üretimi (+2 başarısız) → +~0,45 $. Ay toplamı tahmini ~6-7 $ (20 $ sınırının altında).
+- 24 Kasım gece: 1 animasyon denemesi (L4 ~16 dk) + 1 kurulum/duman testi → +~0,35 $. Ay toplamı tahmini ~7-8 $ (20 $ sınırının altında).

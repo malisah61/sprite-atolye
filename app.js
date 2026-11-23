@@ -1162,7 +1162,8 @@ async function animateAI() {
     }
     const stil = $('#animStil').value;
     const body = { anim: tur, n: +$('#animKare').value, seed: Math.floor(Math.random() * 1e6), prompt: [tarif, STIL[stil]].filter(Boolean).join(', '),
-      style: stil === 'pixel' ? 'pixel' : 'other', lora: loraFor(stil), yon: +$('#animYon').value, auto: true };
+      style: stil === 'pixel' ? 'pixel' : 'other', lora: loraFor(stil), yon: +$('#animYon').value, auto: true,
+      zincir: !document.getElementById('animZincir') || $('#animZincir').checked };
     if (AN.src) body.image = await canvasB64(AN.src);
     // 3-5 dk süren iş: iş kuyruğuyla (POST /is/animate + yoklama), 150 sn sınırına takılmaz
     const d = await motorIs('animate', body, null, null, url);

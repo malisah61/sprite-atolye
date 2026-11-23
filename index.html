@@ -165,7 +165,7 @@
 <!-- ANİMASYON -->
 <section id="anim" class="tab">
   <div class="card">
-    <p class="hint">Tek bir sprite'tan animasyon: <b>Kodla</b> anında ve ücretsiz (resim sallanır/eğilir), <b>Yapay zekâ ile</b> her kare yeniden çizilir (gerçek adım atma, kol sallama; Modal motoru, 8 kare ≈ 3-5 dk).</p>
+    <p class="hint">Tek bir sprite'tan animasyon: <b>Kodla</b> anında ve ücretsiz (resim sallanır/eğilir), <b>Yapay zekâ ile</b> her kare yeniden çizilir (gerçek adım atma, kol sallama; Modal motoru, 8 kare ≈ 4-6 dk).</p>
     <div class="row"><button id="btnAnimSec">Galeriden sprite seç</button></div>
     <div class="grid2">
       <div><label>Yöntem</label>
@@ -177,6 +177,7 @@
       <label>Karakter tarifi (yapay zekâ için; Türkçe yazabilirsin)</label>
       <input id="animTarif" placeholder="ör. yeşil bereli İngiliz komando, kamuflaj ceket, elinde tüfek">
       <p class="hint">Karakter yandan, sağa bakarak çizilir (sola bakan için Yön: Sola). Seçtiğin sprite referans olur — kıyafet ve renkler ondan alınır.</p>
+      <label title="Her kare çizilirken bir önceki kare de modele gösterilir: silah ve kıyafet kareden kareye daha az değişir. Kare başına ~%60 daha uzun sürer."><input type="checkbox" id="animZincir" checked> Tutarlı silah/kıyafet (önceki kareye bakarak çiz — biraz daha yavaş)</label>
     </div>
     <div class="grid2">
       <div><label>Hareket</label>
