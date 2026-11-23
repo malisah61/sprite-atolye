@@ -84,14 +84,11 @@ jobs:
           if os.path.exists("/tmp/referans.png"):
               body["reference"] = base64.b64encode(open("/tmp/referans.png", "rb").read()).decode()
               body["ref_scale"] = float(os.environ.get("IN_REF_SCALE") or 0.6)
-          req = urllib.request.Request(os.environ["MOTOR_URL"] + "/generate", data=json.dumps(body).encode(),
-              headers={"Content-Type": "application/json", "X-Sprite-Key": os.environ["SPRITE_KEY"]})
+          import sys
+          sys.path.insert(0, "modal")
+          from motor_istemci import cagir  # iş kuyruğu: 150 sn'yi aşan üretimler 303 döngüsüne düşmesin
           t0 = time.time()
-          try:
-              d = json.load(urllib.request.urlopen(req, timeout=900))
-          except urllib.error.HTTPError as e:
-              print("Motor hatası:", e.code, e.read().decode(errors="replace")[:2000])
-              raise
+          d = cagir(os.environ["MOTOR_URL"], "generate", body, os.environ["SPRITE_KEY"])
           ad = re.sub(r"[^a-z0-9-]", "-", os.environ["IN_AD"].lower())
           os.makedirs("/tmp/out", exist_ok=True)
           for k, im in enumerate(d["images"]):

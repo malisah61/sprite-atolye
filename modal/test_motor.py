@@ -15,9 +15,16 @@ hatalar = []
 
 
 def post(yol, body):
+    t = time.time()
+    if yol in ("/generate", "/edit"):  # uzun işler kuyrukla (150 sn sınırı)
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from motor_istemci import cagir
+        try:
+            return cagir(URL, yol.strip("/"), body, KEY), round(time.time() - t)
+        except SystemExit as e:
+            raise RuntimeError(str(e))
     req = urllib.request.Request(URL + yol, data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json", "X-Sprite-Key": KEY})
-    t = time.time()
     try:
         d = json.load(urllib.request.urlopen(req, timeout=900))
     except urllib.error.HTTPError as e:

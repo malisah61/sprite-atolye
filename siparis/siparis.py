@@ -49,17 +49,11 @@ def liste(yol, sadece=""):
         open(out, "a").write(satir + "\n")
 
 
-def istek(yol, govde, deneme=3):
-    for i in range(deneme):
-        try:
-            req = urllib.request.Request(MOTOR + yol, data=json.dumps(govde).encode(),
-                                         headers={"Content-Type": "application/json",
-                                                  "X-Sprite-Key": os.environ["SPRITE_KEY"]})
-            return json.load(urllib.request.urlopen(req, timeout=1200))
-        except Exception as e:  # motor soğuk başlarken / sırada beklerken ara ara düşebilir
-            print(f"motor hatası ({i + 1}/{deneme}): {e}", flush=True)
-            time.sleep(20)
-    raise SystemExit("motor cevap vermedi")
+def istek(yol, govde):
+    """Motor çağrısı iş kuyruğuyla (modal/motor_istemci.py): 150 sn'yi aşan üretim 303 döngüsüne düşmez."""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "modal"))
+    from motor_istemci import cagir
+    return cagir(MOTOR, yol.strip("/"), govde, os.environ["SPRITE_KEY"])
 
 
 def genislik_orani(png_bytes):

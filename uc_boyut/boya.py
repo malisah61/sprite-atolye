@@ -6,7 +6,9 @@ import glob
 import json
 import os
 import sys
-import urllib.request
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "modal"))
+from motor_istemci import cagir  # noqa: E402
 
 k, orj, tarif, stil, guc = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], float(sys.argv[5])
 URL = os.environ["MOTOR_URL"].rstrip("/")
@@ -23,9 +25,7 @@ for i, f in enumerate(fs):
             "seed": 11, "auto": True}
     if stil in ("cartoon", "chibi"):
         body["lora"] = stil
-    req = urllib.request.Request(URL + "/edit", data=json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json", "X-Sprite-Key": KEY})
-    d = json.load(urllib.request.urlopen(req, timeout=900))
+    d = cagir(URL, "edit", body, KEY)  # iş kuyruğu (150 sn sınırı)
     out = f.replace("yon_", "boyali_")
     open(out, "wb").write(base64.b64decode(d["images"][0]))
     print(f"{os.path.basename(out)}: {bakis} · GPU {d['seconds']} sn", flush=True)
