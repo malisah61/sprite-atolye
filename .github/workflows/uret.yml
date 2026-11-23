@@ -102,8 +102,6 @@ jobs:
           git config user.name "github-actions"; git config user.email "actions@github.com"
           for i in 1 2 3; do
             git fetch origin deneme-sonuclari && git checkout -f -B deneme-sonuclari origin/deneme-sonuclari || git checkout --orphan deneme-sonuclari
-            git rm -rq --cached . 2>/dev/null || true
-            find . -maxdepth 1 ! -name . ! -name .git ! -name uretim ! -name deneme -exec rm -rf {} +
             mkdir -p uretim && cp /tmp/out/*.png uretim/
             git add uretim && git commit -qm "Üretim: ${{ inputs.ad }}" && git push -q origin deneme-sonuclari && break
             sleep 5

@@ -394,6 +394,33 @@ app = modal.App(APP_NAME, image=image)
 class Motor:
     @modal.enter()
     def load(self):
+        """23 Kasım: modeller arka planda yüklenir; web uç noktası hemen açılır. Böylece soğuk başlangıçta
+        POST /is/<tür> 150 sn sınırına (303) takılmaz; GPU işi modeller hazır olunca başlar."""
+        import threading
+
+        self._hazir = threading.Event()
+        self._yukleme_hatasi = None
+
+        def yukle():
+            try:
+                self._yukle()
+            except Exception as e:  # noqa
+                import traceback
+
+                traceback.print_exc()
+                self._yukleme_hatasi = f"{type(e).__name__}: {e}"
+            finally:
+                self._hazir.set()
+
+        threading.Thread(target=yukle, daemon=True).start()
+
+    def _hazir_bekle(self):
+        if not self._hazir.wait(900):
+            raise RuntimeError("modeller 15 dk'da yüklenemedi")
+        if self._yukleme_hatasi:
+            raise RuntimeError("model yükleme hatası: " + self._yukleme_hatasi)
+
+    def _yukle(self):
         import torch
         from diffusers import AutoencoderKL, DPMSolverMultistepScheduler, StableDiffusionXLPipeline
 
@@ -1070,6 +1097,7 @@ class Motor:
                 raise HTTPException(status_code=401, detail="Anahtar yanlış")
             try:
                 with gpu_kilit:
+                    self._hazir_bekle()
                     return _generate(body)
             except HTTPException:
                 raise
@@ -1162,6 +1190,7 @@ class Motor:
             negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters, frame, border"))[:500]
             strength = max(0.15, min(1.0, float(body.get("strength", 0.6 if mask is None else 0.95))))
             with gpu_kilit:
+                self._hazir_bekle()
                 self._lora = self._lora_sec(body)
                 return self._edit(image, mask, prompt, negative, int(body.get("seed", 0)) % (2**31), strength,
                                   str(body.get("style", "other")), self._ref(body.get("reference")),
@@ -1182,6 +1211,7 @@ class Motor:
             im = Image.open(io.BytesIO(raw))
             im.thumbnail((2048, 2048))
             with gpu_kilit:
+                self._hazir_bekle()
                 out = self._cut(im)
             k = None
             if body.get("auto", True):
@@ -1213,6 +1243,33 @@ ANIM_TURLER = {"bekleme": 4, "yuru": 8, "kos": 8, "saldir": 8, "ates": 4, "zipla
 class Animator:
     @modal.enter()
     def load(self):
+        """23 Kasım: modeller arka planda yüklenir; web uç noktası hemen açılır. Böylece soğuk başlangıçta
+        POST /is/<tür> 150 sn sınırına (303) takılmaz; GPU işi modeller hazır olunca başlar."""
+        import threading
+
+        self._hazir = threading.Event()
+        self._yukleme_hatasi = None
+
+        def yukle():
+            try:
+                self._yukle()
+            except Exception as e:  # noqa
+                import traceback
+
+                traceback.print_exc()
+                self._yukleme_hatasi = f"{type(e).__name__}: {e}"
+            finally:
+                self._hazir.set()
+
+        threading.Thread(target=yukle, daemon=True).start()
+
+    def _hazir_bekle(self):
+        if not self._hazir.wait(900):
+            raise RuntimeError("modeller 15 dk'da yüklenemedi")
+        if self._yukleme_hatasi:
+            raise RuntimeError("model yükleme hatası: " + self._yukleme_hatasi)
+
+    def _yukle(self):
         import torch
         from diffusers import (AutoencoderKL, ControlNetModel, DPMSolverMultistepScheduler,
                                StableDiffusionXLControlNetInpaintPipeline, StableDiffusionXLControlNetPipeline)
@@ -1431,6 +1488,7 @@ class Animator:
                 raise HTTPException(status_code=401, detail="Anahtar yanlış")
             try:
                 with gpu_kilit:
+                    self._hazir_bekle()
                     return self.animate(body)
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
