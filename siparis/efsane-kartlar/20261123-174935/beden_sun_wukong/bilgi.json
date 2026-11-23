@@ -1,0 +1,18 @@
+{
+ "ad": "beden_sun_wukong",
+ "tarif": "Sun Wukong the Monkey King from Journey to the West, monkey face with golden fur, golden circlet headband on his head, red and gold Chinese armor with phoenix feathers on his cap, holding a long golden staff Ruyi Jingu Bang, cheeky grin, pixel art, full body 16-bit SNES JRPG battle sprite with chunky proportions, short and stocky, big head about one third of the body height, standing three-quarter view facing right, whole body visible from head to feet, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.878,
+  0.861,
+  0.788
+ ],
+ "gpu_sn": 107.65,
+ "toplam_sn": 528,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/sun_wukong.png"
+}

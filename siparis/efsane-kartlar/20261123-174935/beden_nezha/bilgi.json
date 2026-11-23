@@ -1,0 +1,18 @@
+{
+ "ad": "beden_nezha",
+ "tarif": "Nezha Chinese child warrior god, young boy with two hair buns, red silk sash floating around him, golden ring on his arm, standing on two flaming wind-fire wheels, holding a fire-tipped spear, pixel art, full body 16-bit SNES JRPG battle sprite with chunky proportions, short and stocky, big head about one third of the body height, standing three-quarter view facing right, whole body visible from head to feet, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.888,
+  0.847,
+  0.823
+ ],
+ "gpu_sn": 106.99,
+ "toplam_sn": 628,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/nezha.png"
+}

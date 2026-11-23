@@ -1,0 +1,16 @@
+{
+ "ad": "beden_qilin",
+ "tarif": "Qilin Chinese mythical chimera, deer-like body covered in blue and gold dragon scales, single antler horn, flowing cloud-like mane and tail, hooves wreathed in soft flames, gentle glowing eyes, pixel art, full body 16-bit SNES JRPG battle sprite with chunky proportions, short and stocky, big head about one third of the body height, standing three-quarter view facing right, whole body visible from head to feet, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.845,
+  0.759,
+  0.698
+ ],
+ "gpu_sn": 108.42,
+ "toplam_sn": 1065,
+ "dersler": [],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/qilin.png"
+}

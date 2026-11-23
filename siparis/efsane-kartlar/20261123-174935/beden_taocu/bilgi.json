@@ -1,0 +1,19 @@
+{
+ "ad": "beden_taocu",
+ "tarif": "Chinese Taoist priest sorcerer, black and white yin yang robe, black Taoist hat, thin long beard, holding yellow paper talismans with red writing that burn with fire, peach wood sword, pixel art, full body 16-bit SNES JRPG battle sprite with chunky proportions, short and stocky, big head about one third of the body height, standing three-quarter view facing right, whole body visible from head to feet, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.986,
+  0.962,
+  0.947
+ ],
+ "gpu_sn": 246.86,
+ "toplam_sn": 1058,
+ "dersler": [
+  "silah",
+  "tek silah"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/beden/taocu.png"
+}
