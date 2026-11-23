@@ -1,0 +1,18 @@
+{
+ "aciklama": "Sprite Atölye'de üretilen komando portre adayları (HUD sol alt portre için). Motor: DreamShaper XL + ekstra kalite (hi-res) + yüz düzeltme + otomatik arka plan temizliği. *_256.png: HUD boyutu (alttan hizalı, şeffaf).",
+ "tarih": "2026-11-23",
+ "portreler": {
+  "reilly": {
+   "karakter": "Çvş. Tom Reilly (Bıçak, Yeşil Bere)",
+   "seed": 101,
+   "tarif": "head and shoulders portrait of a WW2 British commando sergeant, green beret, stubble, camouflage face paint, denison smock",
+   "not": "Aday 1 başı açık (bere çizilmedi), aday 2 yeşil kasketli; ikisinde de bere tutmadı — beğenilmezse yeniden üretilecek"
+  },
+  "blake": {
+   "karakter": "Yzb. Edward 'Şahin' Blake (keskin nişancı)",
+   "seed": 202,
+   "tarif": "head and shoulders portrait of a WW2 British army sniper captain, short brown hair, thin moustache, khaki battledress, binoculars",
+   "not": "Aday 2'de dürbünlü tüfek omzunda; şapka rozetleri model uydurması"
+  }
+ }
+}
