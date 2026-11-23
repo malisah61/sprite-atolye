@@ -52,7 +52,8 @@ image = (
 app = modal.App("sprite-atolye-anim-deneme", image=image)
 
 
-@app.cls(gpu="T4", cpu=4.0, timeout=1800, scaledown_window=30, max_containers=1)
+# T4 (15 GB) yetmedi: SDXL + ControlNet + IP-Adapter ≈ 12,5 GB, 1536×1024 VAE çözümünde bellek taştı (23 Kasım) → L4 (24 GB)
+@app.cls(gpu="L4", cpu=4.0, timeout=1800, scaledown_window=30, max_containers=1)
 class Anim:
     @modal.enter()
     def yukle(self):
@@ -72,6 +73,7 @@ class Anim:
         pipe.load_ip_adapter(IPA_REPO, subfolder="sdxl_models", weight_name=IPA_FILE, image_encoder_folder="models/image_encoder")
         pipe.to("cuda")
         pipe.enable_vae_slicing()
+        pipe.enable_vae_tiling()
         self.pipe = pipe
         self.inp = StableDiffusionXLControlNetInpaintPipeline.from_pipe(pipe)
         from rembg import new_session
