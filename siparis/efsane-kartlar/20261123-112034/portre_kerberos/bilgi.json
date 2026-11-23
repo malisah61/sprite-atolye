@@ -1,0 +1,16 @@
+{
+ "ad": "portre_kerberos",
+ "tarif": "close-up portrait, Cerberus, one big black hellhound body with three snarling dog heads side by side, fiery orange eyes, spiked collars, flames, pixel art, 16-bit SNES JRPG monster portrait, bold outlines, vibrant colors, single creature, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  1.0,
+  0.936,
+  0.889
+ ],
+ "gpu_sn": 128.61,
+ "toplam_sn": 133,
+ "dersler": [],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/kerberos.png"
+}

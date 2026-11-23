@@ -1,0 +1,18 @@
+{
+ "ad": "portre_hades",
+ "tarif": "close-up portrait of the face and shoulders only, Hades Greek god of the underworld, grim pale king with long black beard, black spiked crown, dark bronze armored shoulders, green ghost flames in the background, pixel art, 16-bit SNES JRPG character portrait, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.809,
+  0.66,
+  0.644
+ ],
+ "gpu_sn": 128.81,
+ "toplam_sn": 383,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/hades.png"
+}

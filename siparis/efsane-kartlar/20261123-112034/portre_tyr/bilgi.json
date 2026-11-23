@@ -1,0 +1,18 @@
+{
+ "ad": "portre_tyr",
+ "tarif": "close-up portrait of the face and shoulders only, Tyr Norse god of war, stern bearded man with braided red-brown beard, iron helmet with nose guard, chainmail shoulders, fur cloak, pixel art, 16-bit SNES JRPG character portrait, bold outlines, vibrant colors, single character, plain flat solid medium gray background",
+ "secilen": 1,
+ "puan": [
+  0.897,
+  0.877,
+  0.848
+ ],
+ "gpu_sn": 123.96,
+ "toplam_sn": 258,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/kartlar/tyr.png"
+}
