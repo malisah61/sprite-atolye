@@ -16,6 +16,7 @@ jobs:
       MOTOR_URL: https://malisah61--sprite-atolye-motor-web.us-east.modal.run
       SPRITE_KEY: ${{ secrets.SPRITE_KEY }}
       IN_GOVDE: ${{ inputs.govde }}
+      SADECE_IS: '1'
     steps:
       - run: |
           python3 - <<'PY'
@@ -24,7 +25,22 @@ jobs:
               def redirect_request(self, *a, **k): return None
           op = urllib.request.build_opener(NoRedir)
           body = json.loads(os.environ["IN_GOVDE"])
-          for deneme in (1, 2):
+          # 1) iş kuyruğu (sitenin yolu): POST /is/generate → GET /is/<id>
+          H = {"Content-Type": "application/json", "X-Sprite-Key": os.environ["SPRITE_KEY"], "Origin": "https://malisah61.github.io"}
+          t0 = time.time()
+          r = op.open(urllib.request.Request(os.environ["MOTOR_URL"] + "/is/generate", data=json.dumps(body).encode(), headers=H), timeout=120)
+          print("iş başlat:", r.status, dict(r.headers).get("access-control-allow-origin"), round(time.time() - t0, 1), "sn")
+          is_id = json.loads(r.read())["is"]
+          while True:
+              time.sleep(3)
+              q = op.open(urllib.request.Request(os.environ["MOTOR_URL"] + "/is/" + is_id, headers=H), timeout=120)
+              d = json.loads(q.read())
+              if d["durum"] != "calisiyor":
+                  break
+          print("iş sonucu:", d["durum"], round(time.time() - t0), "sn", {k: v for k, v in (d.get("sonuc") or d).items() if k != "images"})
+          if os.environ.get("SADECE_IS"):
+              raise SystemExit(0)
+          for deneme in (1,):
               t0 = time.time()
               req = urllib.request.Request(os.environ["MOTOR_URL"] + "/generate", data=json.dumps(body).encode(),
                   headers={"Content-Type": "application/json", "X-Sprite-Key": os.environ["SPRITE_KEY"], "Origin": "https://malisah61.github.io"})

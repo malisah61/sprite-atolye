@@ -1015,12 +1015,59 @@ class Motor:
                     "loralar": list(getattr(self, "loras", {})),
                     "ozellikler": ["generate", "reference", "tileable", "edit", "inpaint", "rembg", "hires", "yuz"]}
 
+        # 23 Kasım: Modal web uç noktası 150 sn'yi aşan isteklere 303 yönlendirme döner (CORS başlıksız) →
+        # tarayıcıda "Failed to fetch". Ekstra kalite + yüz düzeltme + temizlik birlikte ~150-200 sn sürüyor.
+        # Çözüm: iş kuyruğu. POST /is/<tür> hemen {"is": id} döner, iş arka planda çalışır, GET /is/<id> ile sorulur.
+        # (Tek GPU: kilit; konteyner yoklamalarla açık kalır.) Eski eşzamanlı uç noktalar Actions için duruyor.
+        import threading
+        import time as _time
+        import uuid
+
+        isler = {}
+        gpu_kilit = threading.Lock()
+
+        @api.post("/is/{tur}")
+        def is_baslat(tur: str, body: dict, x_sprite_key: str = Header(default="")):
+            if key and x_sprite_key != key:
+                raise HTTPException(status_code=401, detail="Anahtar yanlış")
+            fn = {"generate": generate, "edit": edit}.get(tur)
+            if fn is None:
+                raise HTTPException(status_code=404, detail="bilinmeyen iş türü")
+            for k in [k for k, v in isler.items() if _time.time() - v["t0"] > 1800]:
+                isler.pop(k, None)  # 30 dk'dan eski, alınmamış sonuçlar
+            is_id = uuid.uuid4().hex[:16]
+            isler[is_id] = {"durum": "calisiyor", "t0": _time.time()}
+
+            def calis():
+                try:
+                    isler[is_id].update(durum="bitti", sonuc=fn(body, x_sprite_key))
+                except HTTPException as e:
+                    isler[is_id].update(durum="hata", kod=e.status_code, detay=str(e.detail)[:1200])
+                except Exception as e:  # noqa
+                    isler[is_id].update(durum="hata", kod=500, detay=f"{type(e).__name__}: {str(e)[:600]}")
+
+            threading.Thread(target=calis, daemon=True).start()
+            return {"is": is_id}
+
+        @api.get("/is/{is_id}")
+        def is_durum(is_id: str, x_sprite_key: str = Header(default="")):
+            if key and x_sprite_key != key:
+                raise HTTPException(status_code=401, detail="Anahtar yanlış")
+            d = isler.get(is_id)
+            if d is None:
+                raise HTTPException(status_code=404, detail="iş bulunamadı (motor yeniden başlamış olabilir)")
+            if d["durum"] == "calisiyor":
+                return {"durum": "calisiyor", "sure": round(_time.time() - d["t0"])}
+            isler.pop(is_id, None)
+            return {k: v for k, v in d.items() if k != "t0"}
+
         @api.post("/generate")
         def generate(body: dict, x_sprite_key: str = Header(default="")):
             if key and x_sprite_key != key:
                 raise HTTPException(status_code=401, detail="Anahtar yanlış")
             try:
-                return _generate(body)
+                with gpu_kilit:
+                    return _generate(body)
             except HTTPException:
                 raise
             except Exception as e:  # noqa — 23 Kasım: çıplak "500" hata ayıklamayı imkânsız kılıyordu → ayrıntı dön
@@ -1111,10 +1158,11 @@ class Motor:
             prompt = str(body.get("prompt", ""))[:1500]
             negative = str(body.get("negative", "text, watermark, blurry, cropped, multiple characters, frame, border"))[:500]
             strength = max(0.15, min(1.0, float(body.get("strength", 0.6 if mask is None else 0.95))))
-            self._lora = self._lora_sec(body)
-            return self._edit(image, mask, prompt, negative, int(body.get("seed", 0)) % (2**31), strength,
-                              str(body.get("style", "other")), self._ref(body.get("reference")),
-                              max(0.0, min(1.0, float(body.get("ref_scale", 0.5)))), bool(body.get("auto", True)))
+            with gpu_kilit:
+                self._lora = self._lora_sec(body)
+                return self._edit(image, mask, prompt, negative, int(body.get("seed", 0)) % (2**31), strength,
+                                  str(body.get("style", "other")), self._ref(body.get("reference")),
+                                  max(0.0, min(1.0, float(body.get("ref_scale", 0.5)))), bool(body.get("auto", True)))
 
         @api.post("/rembg")
         def rembg(body: dict, x_sprite_key: str = Header(default="")):

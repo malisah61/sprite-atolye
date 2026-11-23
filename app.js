@@ -378,18 +378,11 @@ const ENGINES = {
     async generate({ prompt, seed, stil, negatif, w = 1024, h = 1024, seffaf = false, ref = null, refScale = 0.6, tile = false, parts = null, base = '', absent = null, styleText = '', tur = '', bakis = '' }) {
       const { url, key } = modalCfg();
       const ac = new AbortController();
-      const to = setTimeout(() => ac.abort(), 300000);
+      const to = setTimeout(() => ac.abort(), 900000);
       try {
-        const r = await fetch(url.replace(/\/+$/, '') + '/generate', {
-          method: 'POST', signal: ac.signal,
-          headers: { 'Content-Type': 'application/json', 'X-Sprite-Key': key },
-          body: JSON.stringify({ prompt, seed, n: 1, width: w, height: h, auto: seffaf, style: stil === 'pixel' ? 'pixel' : 'other', negative: negatif || undefined,
+        const d = await motorIs('generate', { prompt, seed, n: 1, width: w, height: h, auto: seffaf, style: stil === 'pixel' ? 'pixel' : 'other', negative: negatif || undefined,
             reference: ref || undefined, ref_scale: refScale, tileable: tile,
-            parts: parts || undefined, base, absent: absent || undefined, style_text: styleText, lora: loraFor(stil), hires: hiresFor(stil) || undefined, yuz: yuzFor(stil, tur, bakis) || undefined }),
-        });
-        if (r.status === 401) throw new Error('Motor anahtarı yanlış');
-        if (!r.ok) throw new Error('Modal hatası ' + r.status);
-        const d = await r.json();
+            parts: parts || undefined, base, absent: absent || undefined, style_text: styleText, lora: loraFor(stil), hires: hiresFor(stil) || undefined, yuz: yuzFor(stil, tur, bakis) || undefined }, ac.signal);
         if (d.plain && d.plain[0] === false) toast('Model desenli/çerçeveli arka plan çizdi; tam resim olarak verildi. Atölye\'de "Otomatik temizle" ya da yeniden üret.', 5000);
         const bin = Uint8Array.from(atob(d.images[0]), ch => ch.charCodeAt(0));
         const c = await blobToCanvas(new Blob([bin], { type: 'image/png' }));
@@ -863,6 +856,43 @@ $('#btnArka').onclick = () => {
   drawWorkshop();
   toast(r > 0.95 ? 'Neredeyse her şey silindi — toleransı düşür' : r < 0.02 ? 'Pek bir şey silinmedi — toleransı artır' : 'Arka plan silindi');
 };
+/* Modal motoru: uzun işler (ekstra kalite + yüz düzeltme 150 sn'yi aşabiliyor) iş kuyruğuyla çalışır:
+   POST /is/<tür> → {is}, sonra GET /is/<id> yoklanır. Eski motorda (404) doğrudan çağrıya düşer. */
+async function motorIs(tur, body, signal, ilerleme) {
+  const { url, key } = modalCfg();
+  const kok = url.replace(/\/+$/, '');
+  const H = { 'Content-Type': 'application/json', 'X-Sprite-Key': key };
+  const r = await fetch(kok + '/is/' + tur, { method: 'POST', signal, headers: H, body: JSON.stringify(body) });
+  if (r.status === 401) throw new Error('Motor anahtarı yanlış');
+  if (r.status === 404 || r.status === 405) {
+    const r2 = await fetch(kok + '/' + tur, { method: 'POST', signal, headers: H, body: JSON.stringify(body) });
+    if (r2.status === 401) throw new Error('Motor anahtarı yanlış');
+    if (!r2.ok) throw new Error('Modal hatası ' + r2.status);
+    return r2.json();
+  }
+  if (!r.ok) throw new Error('Modal hatası ' + r.status);
+  const { is } = await r.json();
+  const bitis = Date.now() + 900000;
+  let hata = 0;
+  while (Date.now() < bitis) {
+    await new Promise(ok => setTimeout(ok, 3000));
+    if (signal && signal.aborted) throw new Error('İptal edildi');
+    let d;
+    try {
+      const q = await fetch(kok + '/is/' + is, { signal, headers: { 'X-Sprite-Key': key } });
+      if (q.status === 404) throw new Error('İş kayboldu (motor yeniden başladı) — tekrar dene');
+      d = await q.json();
+      hata = 0;
+    } catch (e) {
+      if (/kayboldu/.test(e.message) || ++hata > 5) throw e;
+      continue;  // anlık bağlantı kopması: yoklamaya devam
+    }
+    if (d.durum === 'calisiyor') { if (ilerleme) ilerleme(d.sure); continue; }
+    if (d.durum === 'hata') throw new Error('Motor: ' + (d.detay || d.kod));
+    return d.sonuc;
+  }
+  throw new Error('Zaman aşımı (15 dk)');
+}
 /* ---- Yapay zekâ ile düzenleme (metinle / boyayarak) ---- */
 async function aiEdit(c, prompt, strength, maskCanvas) {
   const { url, key } = modalCfg();
@@ -870,12 +900,7 @@ async function aiEdit(c, prompt, strength, maskCanvas) {
   const body = { image: c.toDataURL('image/png').split(',')[1], prompt, strength, style: $('#stil').value === 'pixel' ? 'pixel' : 'other', lora: loraFor($('#stil').value), seed: Math.floor(Math.random() * 1e9), auto: true };
   if (maskCanvas) body.mask = maskCanvas.toDataURL('image/png').split(',')[1];
   if (REF.b64) { body.reference = REF.b64; body.ref_scale = Math.min(0.6, REF.scale); }
-  const r = await fetch(url.replace(/\/+$/, '') + '/edit', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Sprite-Key': key }, body: JSON.stringify(body),
-  });
-  if (r.status === 401) throw new Error('Motor anahtarı yanlış');
-  if (!r.ok) throw new Error('Modal hatası ' + r.status);
-  const d = await r.json();
+  const d = await motorIs('edit', body);
   return blobToCanvas(new Blob([Uint8Array.from(atob(d.images[0]), ch => ch.charCodeAt(0))], { type: 'image/png' }));
 }
 async function duzenleCalistir(maskeli) {
