@@ -62,6 +62,8 @@ jobs:
     env:
       MOTOR_URL: https://malisah61--sprite-atolye-motor-web.us-east.modal.run
       SPRITE_KEY: ${{ secrets.SPRITE_KEY }}
+      HEDEF_REPO: ${{ inputs.hedef }}
+      HEDEF_DAL: ${{ inputs.dal }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4

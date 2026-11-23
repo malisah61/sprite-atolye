@@ -6,7 +6,7 @@
 siparis.json biçimi (liste):
   {"ad": "alman_dag", "tarif": "İngilizce tarif", "tur": "karakter|dusman|esya|...", "stil": "other|pixel|cartoon|chibi|dark",
    "adet": 2, "seed": 7, "hat": "komando" (isteğe bağlı: 3D + UAL ile 8 yön sprite sayfası), "ekipman": ["rifle", "helmet"],
-   "boyut": [1024, 1024], "aday": 2 (isteğe bağlı: elle aday seçimi), "cikti": "assets/sprites/alman_dag_sprite_sheet.png" (isteğe bağlı hedef yol)}
+   "boyut": [1024, 1024], "referans": "assets/kartlar/x.png" (isteğe bağlı, IP-Adapter kimlik), "ref_scale": 0.55, "aday": 2 (isteğe bağlı: elle aday seçimi), "cikti": "assets/sprites/alman_dag_sprite_sheet.png" (isteğe bağlı hedef yol)}
 """
 import base64
 import json
@@ -106,6 +106,16 @@ def uret(yol, ad, cikis):
              "width": int(w), "height": int(h), "auto": True, "hires": bool(s.get("ekstra", False))}
     if komando:
         govde["negative"] = KOMANDO_NEG
+    if s.get("referans"):
+        # karakter kimliği için referans görsel (IP-Adapter): hedef repodaki dosya, ör. "assets/kartlar/tyr.png"
+        # (23 Kasım: beden ile portre aynı kişi görünsün — Hades ve Tyr'da uyuşmamıştı)
+        url = f"https://raw.githubusercontent.com/{os.environ.get('HEDEF_REPO', '')}/{os.environ.get('HEDEF_DAL', 'main')}/{s['referans']}"
+        try:
+            govde["reference"] = base64.b64encode(urllib.request.urlopen(url, timeout=60).read()).decode()
+            govde["ref_scale"] = float(s.get("ref_scale", 0.55))
+            print("referans:", s["referans"])
+        except Exception as e:  # noqa
+            print("referans alınamadı:", url, e)
     if stil in LORA:
         govde["lora"] = LORA[stil]
     t0 = time.time()
