@@ -144,6 +144,57 @@ def boy_sec(kareler_listesi, boy=0.84):
     return min(boy, 0.89 / max(tepe, 1e-3))
 
 
+def _bas_tepe_y(kare):
+    """Pozun baş tepesi (figür boyu biriminde, ~burun + 0.075) ve en alçak ayak."""
+    return kare["burun"][1] + 0.075, min(kare["sag_ayak"][1], kare["sol_ayak"][1])
+
+
+def boy_esitle(kareler_rgba, poz_listesi, W, H, boy=0.84, x_merkez=0.5, esik=0.04, sinir=(0.8, 1.25)):
+    """24 Kasım: model bazı karelerde karakteri daha büyük/küçük çiziyor (saldırıda kareler arası boy farkı).
+    Her karede baş tepesi (pozun baş sütununda en üst dolu piksel) → ayak tabanı (en alt dolu piksel) ölçülür,
+    pozdan beklenen boya oranlanır; oranlar medyana çekilir (ayak tabanı sabit kalacak şekilde ölçeklenir).
+    Kafa = baş sütununda kafa genişliğinde dolu ilk satır (ince namlu sayılmaz); ölçek 0.8–1.25 ile sınırlı.
+    kareler_rgba: tam boy (W×H) RGBA kareler (kırpmadan önce). Dönüş: (yeni kareler, ölçekler)."""
+    import numpy as np
+    from PIL import Image
+
+    olcek = boy * H
+    taban = H * 0.92
+    oranlar = []
+    for im, k in zip(kareler_rgba, poz_listesi):
+        a = np.array(im)[..., 3] > 40
+        if a.sum() < 500:
+            oranlar.append(None); continue
+        tepe_n, ayak_n = _bas_tepe_y(k)
+        beklenen = (tepe_n - ayak_n + 0.02) * olcek  # ayak bileği → taban ~0.02
+        bx = W * x_merkez + (k["burun"][0] - 0.03) * olcek
+        x0, x1 = int(max(0, bx - 0.09 * olcek)), int(min(W, bx + 0.07 * olcek))
+        sut = a[:, x0:x1].sum(axis=1) >= 0.05 * olcek  # kafa genişliğinde dolu satır (ince namlu/kalıntı sayılmaz)
+        satir = np.where(a.sum(axis=1) >= 0.02 * olcek)[0]  # ayak tabanı (gölge/kalıntı çizgisi sayılmaz)
+        ust = np.where(sut)[0]
+        if not len(ust) or not len(satir):
+            oranlar.append(None); continue
+        oranlar.append((satir[-1] - ust[0]) / max(1.0, beklenen))
+    gecerli = [o for o in oranlar if o]
+    if len(gecerli) < 2:
+        return list(kareler_rgba), [1.0] * len(kareler_rgba)
+    med = float(np.median(gecerli))
+    cikti, olcekler = [], []
+    for im, o in zip(kareler_rgba, oranlar):
+        s = 1.0 if not o else min(sinir[1], max(sinir[0], med / o))
+        if abs(s - 1) < esik:
+            cikti.append(im); olcekler.append(1.0); continue
+        a = np.array(im)[..., 3] > 40
+        satir = np.where(a.sum(axis=1) >= 0.02 * olcek)[0]
+        ay = int(satir[-1])
+        ax = int(np.median(np.where(a[max(0, ay - int(0.03 * H)):ay + 1].any(axis=0))[0]))  # ayak tabanı: sabit nokta
+        yeni = im.resize((max(1, round(W * s)), max(1, round(H * s))), Image.LANCZOS)
+        t = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        t.paste(yeni, (round(ax - ax * s), round(ay - ay * s)))  # boş tuvale düz yapıştır (yarı saydam kenarlar korunur)
+        cikti.append(t); olcekler.append(round(s, 3))
+    return cikti, olcekler
+
+
 TURLER = ["bekleme", "yuru", "kos", "saldir", "ates", "zipla", "hasar"]
 
 

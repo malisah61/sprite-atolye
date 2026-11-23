@@ -103,7 +103,9 @@ class Anim:
         sonuc, sure = {}, {}
         g = lambda: torch.Generator("cuda").manual_seed(seed)
         # 1) referans karakter: bekleme pozunda (yandan) — kullanıcı görseli verilmişse o
-        dur = pozlar.ciz(pozlar.kareler("bekleme")[0], W, H)
+        poz = pozlar.kareler(anim, n or None)
+        boy = pozlar.boy_sec(poz)  # canlı motordaki gibi tüm karelere tek ölçek
+        dur = pozlar.ciz(pozlar.kareler("bekleme")[0], W, H, boy=boy)
         t0 = time.time()
         if ref_png:
             ref = Image.open(io.BytesIO(ref_png)).convert("RGBA")
@@ -117,8 +119,7 @@ class Anim:
                             controlnet_conditioning_scale=0.9).images[0]
         sure["referans"] = round(time.time() - t0, 1)
         sonuc["ref"] = ref
-        poz = pozlar.kareler(anim, n or None)
-        sonuc["poz"] = [pozlar.ciz(p, W, H) for p in poz]
+        sonuc["poz"] = [pozlar.ciz(p, W, H, boy=boy) for p in poz]
         if "A" in yontem:
             t0 = time.time()
             self.pipe.set_ip_adapter_scale(0.7)
@@ -126,23 +127,47 @@ class Anim:
                                     width=W, height=H, generator=g(), ip_adapter_image=ref,
                                     controlnet_conditioning_scale=1.0).images[0] for pz in sonuc["poz"]]
             sure["A"] = round(time.time() - t0, 1)
-        if "B" in yontem:
-            t0 = time.time()
-            self.inp.set_ip_adapter_scale(0.5)
-            iki = (f"two side-by-side pictures of the exact same character, identical outfit and colors, {tarif}, "
-                   "full body, side view, facing right, isolated on a plain flat solid light gray background")
+        iki = (f"two side-by-side pictures of the exact same character, identical outfit and colors, {tarif}, "
+               "full body, side view, facing right, isolated on a plain flat solid light gray background")
+        neg2 = neg.replace("multiple characters, duplicate, ", "")
+
+        def yan_yana(pz, ip, cn):
             maske = Image.new("L", (2 * W, H), 0); maske.paste(255, (W, 0, 2 * W, H))
-            kareler = []
-            for pz in sonuc["poz"]:
-                tuval = Image.new("RGB", (2 * W, H), (200, 200, 200)); tuval.paste(ref, (0, 0))
-                kontrol = Image.new("RGB", (2 * W, H)); kontrol.paste(dur, (0, 0)); kontrol.paste(pz, (W, 0))
-                out = self.inp(prompt=iki, negative_prompt=neg.replace("multiple characters, duplicate, ", ""), image=tuval,
-                               mask_image=maske, control_image=kontrol, width=2 * W, height=H, strength=1.0,
-                               num_inference_steps=25, guidance_scale=6.0, generator=g(), ip_adapter_image=ref,
-                               controlnet_conditioning_scale=1.0).images[0]
-                kareler.append(out.crop((W, 0, 2 * W, H)))
-            sonuc["B"] = kareler
+            tuval = Image.new("RGB", (2 * W, H), (200, 200, 200)); tuval.paste(ref, (0, 0))
+            kontrol = Image.new("RGB", (2 * W, H)); kontrol.paste(dur, (0, 0)); kontrol.paste(pz, (W, 0))
+            self.inp.set_ip_adapter_scale(ip)
+            out = self.inp(prompt=iki, negative_prompt=neg2, image=tuval, mask_image=maske, control_image=kontrol,
+                           width=2 * W, height=H, strength=1.0, num_inference_steps=22, guidance_scale=6.0, generator=g(),
+                           ip_adapter_image=ref, controlnet_conditioning_scale=cn).images[0]
+            return out.crop((W, 0, 2 * W, H))
+
+        if "B" in yontem:  # canlı motordaki yöntem (ip 0.6, cn 1.0)
+            t0 = time.time()
+            sonuc["B"] = [yan_yana(pz, 0.6, 1.0) for pz in sonuc["poz"]]
             sure["B"] = round(time.time() - t0, 1)
+        if "D" in yontem:  # yan yana + güçlü poz (model referansın duruşunu kopyalamasın: saldırı yürüyüşe benziyordu)
+            t0 = time.time()
+            sonuc["D"] = [yan_yana(pz, 0.4, 1.35) for pz in sonuc["poz"]]
+            sure["D"] = round(time.time() - t0, 1)
+        if "C" in yontem:  # üçlü: referans | önceki kare | yeni kare → silah/kıyafet kareden kareye taşınır
+            t0 = time.time()
+            uc = (f"three side-by-side pictures of the exact same character, identical outfit, identical weapon and colors, "
+                  f"{tarif}, full body, side view, facing right, isolated on a plain flat solid light gray background")
+            kareler = []
+            onceki, onceki_poz = ref, dur
+            for pz in sonuc["poz"]:
+                tuval = Image.new("RGB", (3 * W, H), (200, 200, 200)); tuval.paste(ref, (0, 0)); tuval.paste(onceki, (W, 0))
+                kontrol = Image.new("RGB", (3 * W, H)); kontrol.paste(dur, (0, 0)); kontrol.paste(onceki_poz, (W, 0)); kontrol.paste(pz, (2 * W, 0))
+                maske = Image.new("L", (3 * W, H), 0); maske.paste(255, (2 * W, 0, 3 * W, H))
+                self.inp.set_ip_adapter_scale(0.5)
+                out = self.inp(prompt=uc, negative_prompt=neg2, image=tuval, mask_image=maske, control_image=kontrol,
+                               width=3 * W, height=H, strength=1.0, num_inference_steps=22, guidance_scale=6.0, generator=g(),
+                               ip_adapter_image=ref, controlnet_conditioning_scale=1.15).images[0]
+                yeni = out.crop((2 * W, 0, 3 * W, H))
+                kareler.append(yeni)
+                onceki, onceki_poz = yeni, pz
+            sonuc["C"] = kareler
+            sure["C"] = round(time.time() - t0, 1)
         # arka plan sil (karşılaştırma için)
         from rembg import remove
 
@@ -150,9 +175,12 @@ class Anim:
             b = io.BytesIO(); im.save(b, format="PNG"); return b.getvalue()
 
         cik = {"ref": png(ref), "poz": [png(p) for p in sonuc["poz"]], "sure": sure}
-        for k in ("A", "B"):
+        for k in ("A", "B", "C", "D"):
             if k in sonuc:
-                cik[k] = [png(remove(im, session=self.rb, post_process_mask=True)) for im in sonuc[k]]
+                kes = [remove(im, session=self.rb, post_process_mask=True) for im in sonuc[k]]
+                kes, ol = pozlar.boy_esitle(kes, poz, W, H, boy=boy)
+                print(f"[anim] {k} boy eşitleme ölçekleri", ol, flush=True)
+                cik[k] = [png(x) for x in kes]
         print("[anim] süreler", sure, flush=True)
         return cik
 
@@ -171,7 +199,7 @@ def main(tarif: str = "WW2 British commando soldier, adult man, green beret, dar
     satirlar = []
     pozlar_im = [Image.open(io.BytesIO(b)) for b in d["poz"]]
     satirlar.append(("poz", pozlar_im))
-    for k in ("A", "B"):
+    for k in ("A", "B", "C", "D"):
         if k not in d:
             continue
         ims = [Image.open(io.BytesIO(b)).convert("RGBA") for b in d[k]]

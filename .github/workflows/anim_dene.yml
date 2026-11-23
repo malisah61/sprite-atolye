@@ -12,7 +12,7 @@ on:
         description: 'bekleme | yuru | kos | saldir | zipla | hasar'
         default: 'yuru'
       yontem:
-        description: 'A (bağımsız) / B (yan yana) / AB'
+        description: 'A (bağımsız) / B (yan yana) / C (üçlü: ref + önceki kare) / D (yan yana, güçlü poz) — ör. BCD'
         default: 'AB'
       seed:
         default: '7'
