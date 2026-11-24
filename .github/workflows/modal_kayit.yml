@@ -1,0 +1,24 @@
+name: Modal kayıtları (hata ayıklama)
+
+# Animatörü uyandırır ve uygulamanın son kayıtlarını 4 dk boyunca yazar (GPU harcaması: animatörün açılışı kadar).
+on:
+  workflow_dispatch:
+
+jobs:
+  kayit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - run: pip install --quiet modal
+      - name: Kayıtları izle + animatörü uyandır
+        run: |
+          (timeout 300 modal app logs sprite-atolye > kayit.txt 2>&1 &)
+          sleep 5
+          for i in 1 2 3 4 5 6 7 8; do
+            curl -s -o /dev/null -w "animator / -> %{http_code} %{time_total}s\n" --max-time 160 https://malisah61--sprite-atolye-animator-web.us-east.modal.run/ && sleep 10
+          done
+          sleep 20
+          grep -v "^\s*$" kayit.txt | tail -150
