@@ -37,6 +37,9 @@ on:
       yuz:
         description: 'Yüz düzeltme (true/false; pixel dışı karakterlerde)'
         default: 'false'
+      motor:
+        description: 'sdxl (eski) | qwen (Ressam, Qwen-Image)'
+        default: 'sdxl'
       ek:
         description: 'İsteğe bağlı JSON, gövdeye eklenir (ör. hibrit: {"parts":[{"name":"nose","want":"long elephant trunk"}],"base":"cat"})'
         default: ''
@@ -74,6 +77,7 @@ jobs:
           IN_EKSTRA: ${{ inputs.ekstra }}
           IN_YUZ: ${{ inputs.yuz }}
           IN_EK: ${{ inputs.ek }}
+          IN_MOTOR: ${{ inputs.motor }}
         run: |
           python3 - <<'PY'
           import json, os, base64, urllib.request, urllib.error, time, re
@@ -94,7 +98,15 @@ jobs:
           sys.path.insert(0, "modal")
           from motor_istemci import cagir  # iş kuyruğu: 150 sn'yi aşan üretimler 303 döngüsüne düşmesin
           t0 = time.time()
-          d = cagir(os.environ["MOTOR_URL"], "generate", body, os.environ["SPRITE_KEY"])
+          url = os.environ["MOTOR_URL"]
+          if os.environ.get("IN_MOTOR") == "qwen":
+              url = url.replace("motor-web", "ressam-web")
+              try:  # uyanma süresini ayrıca ölç (sitedeki önceden uyandırma gibi)
+                  t_u = time.time(); urllib.request.urlopen(url + "/", timeout=160).read()
+                  print(f"uyanma (sağlık isteği): {round(time.time() - t_u)} sn")
+              except Exception as e:
+                  print("uyanma isteği:", e)
+          d = cagir(url, "generate", body, os.environ["SPRITE_KEY"])
           ad = re.sub(r"[^a-z0-9-]", "-", os.environ["IN_AD"].lower())
           os.makedirs("/tmp/out", exist_ok=True)
           for k, im in enumerate(d["images"]):
@@ -102,6 +114,7 @@ jobs:
           msg = f"{len(d['images'])} görsel, GPU {d['seconds']} sn, toplam {round(time.time()-t0)} sn, dersler: {d.get('dersler')}, taslak→pixel: {d.get('iki_asama')}, ekstra kalite: {d.get('hires')} ({d.get('hires_seconds')} sn), yüz: {d.get('yuz')}"
           print(msg)
           print("düzeltmeler:", json.dumps(d.get("fixes"), ensure_ascii=False))
+          print("çizim süreleri:", d.get("cizim_sn"), "kip:", d.get("kip"))
           open(os.environ["GITHUB_STEP_SUMMARY"], "a").write(msg + "\n")
           PY
       - name: Sonuçları kaydet (deneme-sonuclari dalı)
