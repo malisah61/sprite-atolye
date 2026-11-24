@@ -207,6 +207,30 @@ def animasyon():
     yaz(f"Yapay zekâ animasyonu: {n} kare · GPU {d['seconds']} sn ({d.get('sure')}) · boy ölçekleri {d.get('boy_olcek')}")
 
 
+def ressam():
+    # 24 Kasım: Qwen-Image motoru (Ressam) — hibrit yaratık + pixel + chibi, otomatik temizlikle
+    ru = os.environ.get("RESSAM_URL", "").rstrip("/")
+    if not ru:
+        raise RuntimeError("RESSAM_URL yok")
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from motor_istemci import cagir
+    tarifler = [
+        ("ressam_vampir", "other", 1216, 832, "spider-bodied creature with a cat head, vampire, eight long black spider legs, no arms, "
+         "cat head with long vampire fangs and glowing red eyes, game enemy creature, side view, high quality 2D game art, "
+         "isolated on a plain flat solid light gray background"),
+        ("ressam_pixel", "pixel", 832, 1216, "pixel art, green zombie with torn clothes, full body 2D game enemy, crisp pixels, "
+         "limited color palette, retro game sprite, front view, isolated on a plain flat solid light gray background"),
+        ("ressam_chibi", "other", 832, 1216, "chibi style knight girl with a big head and small body, silver armor, red cape, "
+         "holding a small sword, full body 2D game character, cute, front view, isolated on a plain flat solid light gray background"),
+    ]
+    for ad, stil, w, h, p in tarifler:
+        t = time.time()
+        d = cagir(ru, "generate", {"prompt": p, "seed": 42, "n": 1, "width": w, "height": h, "style": stil, "auto": True}, KEY)
+        kaydet(ad, d["images"][0])
+        yaz(f"Ressam {ad}: çizim {d.get('cizim_sn')} sn, GPU {d['seconds']} sn, bekleme dahil {round(time.time() - t)} sn · kip: {d.get('kip')}")
+
+
+dene("ressam (Qwen-Image)", ressam)
 if "img" in ana:
     dene("yapay zekâ animasyonu", animasyon)
 if TAM:

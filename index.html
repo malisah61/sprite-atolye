@@ -105,6 +105,12 @@
       <label>Modele giden tarif (yapay zekâ yorumu — beğenmezsen düzelt, sonra tekrar Üret)</label>
       <textarea id="yorum" rows="3"></textarea>
     </div>
+    <label>Çizim motoru</label>
+    <select id="cizimMotor">
+      <option value="qwen">Qwen-Image (yeni — tarifi anlar, hızlı)</option>
+      <option value="sdxl">SDXL (eski — stil güçlendirici, ekstra kalite, yüz düzeltme)</option>
+    </select>
+    <p class="hint" id="cizimMotorNot">Referans görselli ve dikişsiz doku üretimleri her zaman eski motorla çizilir. Aşağıdaki üç kutu sadece eski motorda geçerli.</p>
     <label title="Kendi motorunda (Modal) çizgi film ve chibi stillerine özel eğitilmiş ek model katmanı kullanılır"><input type="checkbox" id="loraAc" checked> Stil güçlendirici (çizgi film / chibi LoRA — Modal motoru)</label>
     <label title="Önce normal çizer, sonra 1.5 kat büyütüp ince detayları yeniden çizer (HD, çizgi film, karanlık stillerde; pixel'de kullanılmaz). Biraz daha yavaş."><input type="checkbox" id="hiresAc" checked> Ekstra kalite (iki aşamalı çizim — HD / çizgi film / karanlık, Modal motoru)</label>
     <label title="Karakter ve düşmanlarda yüzü bulur, büyütüp gözleri ve yüz hatlarını yeniden çizer (tam boy görsellerde küçük yüzler silik çıkıyor). Pixel ve arkadan görünüşte kullanılmaz. ~8 sn ekler."><input type="checkbox" id="yuzAc" checked> Yüz düzeltme (karakter / düşman — Modal motoru)</label>

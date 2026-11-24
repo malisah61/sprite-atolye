@@ -380,6 +380,15 @@ const ENGINES = {
       const ac = new AbortController();
       const to = setTimeout(() => ac.abort(), 900000);
       try {
+        if (ressamKullan(ref, tile)) {
+          // 24 Kasım: Qwen-Image (tarifi anlar: hibrit yaratıklar, tek figür). Referans ve dikişsiz doku eski motorda.
+          const d = await motorIs('generate', { prompt, seed, n: 1, width: w, height: h, auto: seffaf, style: stil === 'pixel' ? 'pixel' : 'other' }, ac.signal, null, ressamUrl());
+          if (d.plain && d.plain[0] === false) toast('Model desenli/çerçeveli arka plan çizdi; tam resim olarak verildi. Atölye\'de "Otomatik temizle" ya da yeniden üret.', 5000);
+          const bin = Uint8Array.from(atob(d.images[0]), ch => ch.charCodeAt(0));
+          const c = await blobToCanvas(new Blob([bin], { type: 'image/png' }));
+          c._motor = 'Qwen' + (d.cizim_sn ? ` ${Math.round(d.cizim_sn[0])} sn` : '');
+          return c;
+        }
         const d = await motorIs('generate', { prompt, seed, n: 1, width: w, height: h, auto: seffaf, style: stil === 'pixel' ? 'pixel' : 'other', negative: negatif || undefined,
             reference: ref || undefined, ref_scale: refScale, tileable: tile,
             parts: parts || undefined, base, absent: absent || undefined, style_text: styleText, lora: loraFor(stil), hires: hiresFor(stil) || undefined, yuz: yuzFor(stil, tur, bakis) || undefined }, ac.signal);
@@ -400,7 +409,7 @@ const ENGINES = {
 const PARCA_TR = { 'bütün': 'görsel', head: 'kafa', face: 'yüz', wings: 'kanat', wing: 'kanat', tail: 'kuyruk', arms: 'kollar', arm: 'kol', legs: 'bacaklar', body: 'gövde', horns: 'boynuz', hands: 'eller' };
 function dersOzeti(c) {
   // motorun geçmiş hatalardan öğrendiği kurallar (modal/app.py DERSLER)
-  const ek = (c && c._hires ? ' · ekstra kalite ✓' : '') + (c && c._yuz === 'düzeltildi' ? ' · yüz düzeltildi ✓' : '');
+  const ek = (c && c._motor ? ' · ' + c._motor : '') + (c && c._hires ? ' · ekstra kalite ✓' : '') + (c && c._yuz === 'düzeltildi' ? ' · yüz düzeltildi ✓' : '');
   if (!c || !c._dersler || !c._dersler.length) return ek;
   return ek + ' · dersler: ' + c._dersler.join(', ') + (c._ikiAsama ? ' (taslak→pixel)' : '');
 }
@@ -409,6 +418,22 @@ function duzeltmeOzeti(f) {
   return ' · oto-kontrol: ' + f.map(x => x.parca === 'taslak' ? `4 taslaktan en iyisi (${Math.round((x.skor || 0) * 100)}%)` : x.parca === 'sonuç' ? `tarife uygun ✓ (${Math.round((x.skor || 0) * 100)}%)` : x.hata ? 'hata' : `${PARCA_TR[x.parca] || x.parca} ${({ 'tuttu': '✓', 'düzeltildi': '✓ düzeltildi', 'bulunamadı': '?', 'yok ✓': 'yok ✓', 'silindi': 'silindi ✓', 'silinemedi': 'silinemedi ✗', 'cilalandı': 'cilalandı ✓', 'tarife uygun': 'tarife uygun ✓' })[x.durum] || '✗ zayıf'}`).join(', ');
 }
 const DEFAULT_MODAL_URL = 'https://malisah61--sprite-atolye-motor-web.us-east.modal.run';
+/* Ressam = Qwen-Image motoru (aynı Modal uygulamasında ayrı sınıf, L40S) */
+function ressamUrl() {
+  return (localStorage.getItem('sa-ressam-url') || modalCfg().url.replace('motor-web', 'ressam-web')).trim().replace(/\/+$/, '');
+}
+function cizimMotoru() {
+  const k = document.getElementById('cizimMotor');
+  return k ? k.value : 'qwen';
+}
+function ressamKullan(ref, tile) { return cizimMotoru() === 'qwen' && !ref && !tile && !!modalCfg().url; }
+let ressamUyandi = 0;
+function ressamUyandir() {
+  // önceden uyandırma: tarif yazılmaya başlanınca motor açılmaya başlar (10 dk'da bir en fazla; boşta 2 dk sonra kapanır)
+  if (cizimMotoru() !== 'qwen' || !modalCfg().url || Date.now() - ressamUyandi < 600000) return;
+  ressamUyandi = Date.now();
+  fetch(ressamUrl() + '/').catch(() => { /* uyanırken düşebilir, sorun değil */ });
+}
 function modalCfg() {
   return {
     url: (localStorage.getItem('sa-modal-url') || DEFAULT_MODAL_URL).trim(),
@@ -650,6 +675,11 @@ try {
 try {
   $('#yuzAc').checked = localStorage.getItem('sa-yuz') !== '0';
   $('#yuzAc').addEventListener('change', () => { try { localStorage.setItem('sa-yuz', $('#yuzAc').checked ? '1' : '0'); } catch (e) { /* yok */ } });
+} catch (e) { /* kutu yoksa */ }
+try {
+  $('#cizimMotor').value = localStorage.getItem('sa-cizim-motor') || 'qwen';
+  $('#cizimMotor').addEventListener('change', () => { try { localStorage.setItem('sa-cizim-motor', $('#cizimMotor').value); } catch (e) { /* yok */ } ressamUyandi = 0; ressamUyandir(); });
+  $('#prompt').addEventListener('input', ressamUyandir);
 } catch (e) { /* kutu yoksa */ }
 try {
   $('#hiresAc').checked = localStorage.getItem('sa-hires') !== '0';

@@ -74,64 +74,6 @@ DERSLER = [
 ]
 
 
-HAYVANLAR = ("elephant cat dog monkey ape gorilla bat snake serpent spider lion tiger leopard panther wolf fox bear eagle hawk owl "
-             "bird crow raven fish shark octopus squid horse deer stag goat ram bull cow ox pig boar rabbit hare mouse rat frog toad "
-             "crocodile alligator lizard dragon scorpion crab lobster beetle bee wasp butterfly moth rhino rhinoceros hippo giraffe "
-             "zebra camel kangaroo penguin duck chicken rooster turtle tortoise insect mantis ant worm slug snail hyena jackal "
-             "badger raccoon squirrel hedgehog porcupine sloth koala panda parrot peacock swan flamingo seal walrus whale dolphin "
-             "jellyfish mosquito fly cobra viper python lynx cheetah jaguar puma cougar bison buffalo moose elk antelope gazelle "
-             "llama alpaca sheep lamb donkey mule mole otter beaver weasel ferret skunk armadillo anteater platypus").split()
-
-
-def hibrit_hazirla(prompt, negative, parts, base):
-    """24 Kasım (kullanıcı: 'pembe kafalı kedi, fil burunlu' → motor bütün hayvanı FİL çizdi; Gemini kediyi koruyup
-    sadece burnu hortum yaptı). SDXL'de tarifte geçen ikinci hayvanın adı ('elephant') bütün figürü ele geçiriyor.
-    Çözüm: ana çizimde parçaların geldiği hayvanın ADI tariften çıkarılır (biçim tarifi kalır: 'trunk-like nose'),
-    negatife '<hayvan> body/head/ears/legs' eklenir; gövde ana hayvan olarak çizilir. Parça sonra _fix_parts ile
-    sadece kendi bölgesinde (tam 'elephant trunk' tarifiyle) çizilir. Dönüş: (prompt, negative, diger_hayvanlar)."""
-    import re
-
-    base_l = str(base or "").lower()
-    baz = {w for w in re.findall(r"[a-z]+", base_l)}
-    diger = []
-    for part in parts or []:
-        for w in re.findall(r"[a-z]+", str(part.get("want", "")).lower()):
-            w1 = w[:-1] if w.endswith("s") and w[:-1] in HAYVANLAR else w
-            if w1 in HAYVANLAR and w1 not in baz and w1 not in diger:
-                diger.append(w1)
-    # parça tarifinde hayvan adı yoksa (ör. want="trunk") tarifin kendisinde geçen başka hayvanlara bak
-    for w in re.findall(r"[a-z]+", str(prompt).lower()):
-        w1 = w[:-1] if w.endswith("s") and w[:-1] in HAYVANLAR else w
-        if w1 in HAYVANLAR and w1 not in baz and w1 not in diger:
-            diger.append(w1)
-    if not diger:
-        return prompt, negative, []
-    if len(diger) == 1:  # parça çiziminde hayvan adı tarifte olsun ("trunk" → "elephant trunk")
-        for part in parts or []:
-            if diger[0] not in str(part.get("want", "")).lower():
-                part["want"] = f"{diger[0]} {part.get('want', '')}".strip()
-    yeni = prompt
-    for h in diger:
-        yeni = re.sub(rf"(?i)\b{h}(?:s|es)?(?:[- ]like|'s|-shaped|-style)?\b", "", yeni)
-    yeni = re.sub(r"\s{2,}", " ", re.sub(r"\s+,", ",", yeni))
-    yeni = re.sub(r"(,\s*){2,}", ", ", yeni).strip(" ,")
-    # parçanın biçimi (hayvan adı olmadan) ana hayvanın hemen arkasına: "cat, long pink trunk as its nose, ..."
-    bicim = []
-    for part in parts or []:
-        ad = str(part.get("name", "")).strip().lower()
-        w = str(part.get("want", ""))
-        for h in diger:
-            w = re.sub(rf"(?i)\b{h}(?:s|es)?(?:[- ]like|'s)?\b", "", w)
-        w = re.sub(r"\s{2,}", " ", w).strip(" ,")
-        if w and ad and w.lower() != ad:
-            bicim.append(w if ad in w.lower().split() else f"{w} as its {ad}")
-    # ana hayvan EN BAŞTA (model ilk kelimelere en çok ağırlık verir), sonra parça biçimi, sonra kalan tarif
-    on = f"a {base_l} creature with " + " and ".join(bicim) if base_l and bicim else base_l
-    yeni = ", ".join(x for x in [on, yeni] if x)
-    ek = ", ".join(f"{h}, {h} body, {h} head, {h} ears, {h} legs" for h in diger)
-    return yeni, f"{negative}, {ek}"[:700], diger
-
-
 def dersleri_uygula(prompt, negative):
     """Tarife uyan dersleri bulur → (yeni negatif, uygulanan ders adları, iki aşama gerekli mi)."""
     import re
@@ -735,34 +677,6 @@ class Motor:
         mask = mask.filter(ImageFilter.GaussianBlur(grow / 2))  # yumuşak kenar: yeni çizim çevreye kademeli karışır
         return mask, float(a.mean()), box
 
-    def _uzat_maske(self, im, mask, box, name, want=""):
-        """24 Kasım: burun → hortum gibi UZUN parçalar küçük burun maskesine sığmıyordu. Hortum/gaga/burun/boynuz/
-        dokunaç istenince maske parçanın kutusundan aşağı-ileri doğru (kafa boyu kadar) uzatılır; kuyruk/kanat için çevresi
-        genişletilir. Diğer parçalar (kafa, göz) olduğu gibi."""
-        import re
-
-        from PIL import Image, ImageChops, ImageDraw, ImageFilter
-
-        ad = f"{name} {want}".lower()
-        if not re.search(r"\b(nose|trunk|snout|beak|horns?|tusks?|tentacles?|tails?|wings?|proboscis)\b", ad):
-            return mask
-        x0, y0, x1, y1 = box
-        bw, bh = x1 - x0, y1 - y0
-        _, _, hbox = self._part_mask(im, "head")
-        hh = (hbox[3] - hbox[1]) if hbox else max(bw, bh) * 3
-        hw = (hbox[2] - hbox[0]) if hbox else max(bw, bh) * 3
-        ek = Image.new("L", im.size, 0)
-        d = ImageDraw.Draw(ek)
-        if re.search(r"\b(nose|trunk|snout|proboscis|tusks?|tentacles?)\b", ad):
-            # yüzden aşağı ve iki yana sarkan bölge (hortum/dokunaç aşağı iner)
-            d.rounded_rectangle((x0 - 0.35 * hw, y0, x1 + 0.35 * hw, min(im.height, y1 + 1.1 * hh)), radius=int(0.2 * hw), fill=255)
-        elif re.search(r"\b(beak|horns?)\b", ad):
-            d.ellipse((x0 - 0.4 * bw, y0 - 0.6 * bh, x1 + 0.4 * bw, y1 + 0.4 * bh), fill=255)
-        else:  # kuyruk, kanat: çevresini genişlet
-            d.ellipse((x0 - 0.5 * bw, y0 - 0.5 * bh, x1 + 0.5 * bw, y1 + 0.5 * bh), fill=255)
-        ek = ek.filter(ImageFilter.GaussianBlur(max(6, int(0.02 * max(im.size)))))
-        return ImageChops.lighter(mask.convert("L"), ek)
-
     def _clip_pref(self, crop, good, bad):
         """Kırpılan bölge 'good' tarifine mi 'bad' tarifine mi benziyor → good olasılığı (0-1)."""
         import torch
@@ -885,10 +799,6 @@ class Motor:
         import torch
         from PIL import Image
 
-        import re
-
-        from PIL import ImageDraw
-
         log = []
         im = im.convert("RGB")
         degisti = False
@@ -915,22 +825,8 @@ class Motor:
             want = str(part.get("want", "")).strip()[:200]
             if not name or not want:
                 continue
-            uzanti = bool(re.search(r"\b(nose|trunk|snout|beak|proboscis|tusks?)\b", f"{name} {want}".lower()))
             for deneme in range(2):
                 mask, oran, box = self._part_mask(im, name)
-                if mask is None and uzanti:
-                    # 24 Kasım: yandan çizilen kedide CLIPSeg 'nose' bulamadı (çok küçük) → hortum hiç çizilmedi.
-                    # Yedek: yüz/kafa kutusunun ön-alt kısmı burun sayılır, maske oradan aşağı uzatılır.
-                    for yedek in ("face", "head"):
-                        _m, _o, hb = self._part_mask(im, yedek)
-                        if hb:
-                            bw, bh = hb[2] - hb[0], hb[3] - hb[1]
-                            box = (int(hb[0] + 0.3 * bw), int(hb[1] + 0.45 * bh), int(hb[2] - 0.1 * bw), int(hb[1] + 0.85 * bh))
-                            mask = Image.new("L", im.size, 0)
-                            ImageDraw.Draw(mask).ellipse(box, fill=255)
-                            oran = 0.0
-                            log.append({"parca": name, "durum": f"bulunamadı → {yedek} bölgesinden"})
-                            break
                 if mask is None:
                     log.append({"parca": name, "durum": "bulunamadı"})
                     break
@@ -946,10 +842,7 @@ class Motor:
                     break
                 g = torch.Generator("cuda").manual_seed(seed + 101 + i)
                 degisti = True
-                mask = self._uzat_maske(im, mask, box, name, want)
-                # yüze çizilen uzantıda kafa ana hayvanın kalsın ("fil hortumu" → bütün fil kafası olmasın)
-                ek_tarif = f", on a {base} face, {base} head" if (uzanti and base) else ""
-                im = self.inp(prompt=f"{want}{ek_tarif}, {style_text}", negative_prompt=negative, image=im, mask_image=mask,
+                im = self.inp(prompt=f"{want}, {style_text}", negative_prompt=negative, image=im, mask_image=mask,
                               width=im.width, height=im.height, strength=0.92, num_inference_steps=28,
                               guidance_scale=7.0, generator=g, ip_adapter_image=ipa).images[0]
         # son kat cila: yamaların dokusunu/ışığını bütünle eşitle (hafif img2img)
@@ -1080,12 +973,6 @@ class Motor:
         ipa = self._common(style, ref_img, ref_scale)
         prompt = self._lora_prompt(prompt)
         secimler = []
-        neg_parca, prompt_parca, hibrit = negative, prompt, []
-        if parts and base and not tileable:
-            # hibrit yaratık: ana çizimde ikinci hayvanın adı yok (gövdeyi ele geçirmesin), parça sonra yerinde çizilir
-            prompt, negative, hibrit = hibrit_hazirla(prompt, negative, parts, base)
-            if hibrit:
-                secimler_not = {"parca": "hibrit", "durum": f"gövde {base}; {', '.join(hibrit)} sadece parçada", "tarif": prompt[:300]}
         if (parts or absent) and not tileable:
             # her istenen görsel için 4 taslak tara, en doğru kompozisyonun seed'ini kullan
             seeds = []
@@ -1129,14 +1016,11 @@ class Motor:
             for k, im in enumerate(out):
                 log = [secimler[k]] if k < len(secimler) else []
                 try:
-                    if hibrit:
-                        log.insert(0, secimler_not)
                     son, yapi, pp = self._score(im, parts, absent, base, detay=True)
                     if yapi >= 0.9 and all(x >= 0.55 for x in pp):
                         log.append({"parca": "sonuç", "durum": "tarife uygun", "skor": round(son, 2)})
-                    else:  # seçilen taslak tam tutmadıysa (hibritte genelde) parçayı yerinde çiz
-                        # parça çiziminde ikinci hayvan yasak değil (neg_parca = asıl negatif)
-                        im, l2 = self._fix_parts(im, parts or [], base, style_text, neg_parca, seed + k, ipa, absent, prompt)
+                    else:  # nadir: seçilen taslak bile tam tutmadıysa parçayı düzelt (yedek yol)
+                        im, l2 = self._fix_parts(im, parts or [], base, style_text, negative, seed + k, ipa, absent, prompt)
                         log += l2
                 except Exception as e:  # noqa
                     log.append({"hata": str(e)[:200]})
@@ -1163,7 +1047,7 @@ class Motor:
             out = self._hires(out, prompt, negative, seed, ipa)
         hs = round(time.time() - t1, 2)
         # 0d Yüz düzeltme: karakterlerde küçük yüzü yüksek çözünürlükte yeniden çiz (pixel/doku/arkadan görünüşte kapalı)
-        yuz = bool(yuz) and not parts and style != "pixel" and not tileable and not re.search(r"(?i)\b(back view|from behind|facing away)\b", prompt)
+        yuz = bool(yuz) and style != "pixel" and not tileable and not re.search(r"(?i)\b(back view|from behind|facing away)\b", prompt)
         yuz_log, ys = [], 0.0
         if yuz:
             t2 = time.time()
@@ -1702,5 +1586,265 @@ class Animator:
                 iz = traceback.format_exc()
                 print(iz, flush=True)
                 raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)[:300]} | {iz[-700:]}")
+
+        return api
+
+
+# ---------------- Ressam: Qwen-Image + Lightning (24 Kasım) ----------------
+# Kullanıcı: "Gemini gibi hızlı ve anlayan". qwen_dene karşılaştırması (deneme-sonuclari/qwen/): örümcek gövdeli kedi kafalı
+# vampir ve fil hortumlu kediyi SDXL hiç çizemedi, Qwen ikisini de doğru çizdi; çizgi film kadında karakter sayfası yok.
+# Süre: görsel başına ~20 sn (parça parça modda) vs SDXL site ayarlarıyla 80-165 sn.
+# Lisans: Qwen/Qwen-Image apache-2.0, lightx2v/Qwen-Image-Lightning apache-2.0 (indirmede yazdırılır).
+# Hız: Lightning LoRA gövdeye kalıcı birleştirilir (fuse), sonra gövde float8'e sıkıştırılır (torchao, yalnız ağırlık) →
+# gövde ~20 GB + metin kodlayıcı ~16 GB L40S'e (48 GB) sığar, parça parça taşıma olmaz. Olmazsa yedek: cpu offload.
+QWEN = "Qwen/Qwen-Image"
+QWEN_LORA = "lightx2v/Qwen-Image-Lightning"
+QWEN_LORA_DOSYA = "Qwen-Image-Lightning-8steps-V1.1.safetensors"
+
+
+def qwen_indir():
+    from huggingface_hub import model_info, snapshot_download
+
+    for m in (QWEN, QWEN_LORA):
+        b = model_info(m)
+        print("[model]", m, "lisans:", (b.card_data or {}).get("license"), "kapı:", b.gated, flush=True)
+    snapshot_download(QWEN, ignore_patterns=["*.md", "assets/*", "*.png", "*.jpg", "*.gif", "*.mp4"])
+    snapshot_download(QWEN_LORA, allow_patterns=[QWEN_LORA_DOSYA])
+
+
+qwen_image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .pip_install("torch==2.6.0", "torchao==0.10.0", "diffusers==0.35.1", "transformers==4.56.2", "accelerate==1.10.1",
+                 "safetensors==0.6.2", "huggingface_hub==0.35.3", "peft==0.17.1", "sentencepiece==0.2.0",
+                 "protobuf==5.28.3", "fastapi[standard]==0.115.5", "pillow==11.0.0", "numpy<2")
+    .run_function(qwen_indir, timeout=5400)
+    .pip_install("rembg==2.0.59", "onnxruntime==1.19.2", "scipy")
+    .run_function(download_rembg)
+)
+
+
+@app.cls(
+    image=qwen_image,
+    gpu="L40S",
+    cpu=8.0,
+    memory=98304,  # yüklerken bf16 gövde (41 GB) işlemci belleğinde birleştirilir
+    timeout=900,
+    scaledown_window=120,  # art arda üretimlerde açık kalsın; boşta 2 dk sonra kapanır (L40S pahalı)
+    max_containers=1,
+    secrets=[modal.Secret.from_name("sprite-key")],
+)
+@modal.concurrent(max_inputs=10)
+class Ressam:
+    @modal.enter()
+    def load(self):
+        import threading
+
+        self._hazir = threading.Event()
+        self._yukleme_hatasi = None
+
+        def yukle():
+            try:
+                self._yukle()
+            except Exception as e:  # noqa
+                import traceback
+
+                traceback.print_exc()
+                self._yukleme_hatasi = f"{type(e).__name__}: {e}"
+            finally:
+                self._hazir.set()
+
+        threading.Thread(target=yukle, daemon=True).start()
+
+    def _hazir_bekle(self):
+        if not self._hazir.wait(900):
+            raise RuntimeError("model 15 dk'da yüklenemedi")
+        if self._yukleme_hatasi:
+            raise RuntimeError("model yükleme hatası: " + self._yukleme_hatasi)
+
+    def _yukle(self):
+        import math
+        import time
+
+        import torch
+        from diffusers import DiffusionPipeline, FlowMatchEulerDiscreteScheduler
+
+        t0 = time.time()
+        sch = FlowMatchEulerDiscreteScheduler.from_config({  # Lightning model kartındaki ayar
+            "base_image_seq_len": 256, "base_shift": math.log(3), "invert_sigmas": False, "max_image_seq_len": 8192,
+            "max_shift": math.log(3), "num_train_timesteps": 1000, "shift": 1.0, "shift_terminal": None,
+            "stochastic_sampling": False, "time_shift_type": "exponential", "use_beta_sigmas": False,
+            "use_dynamic_shifting": True, "use_exponential_sigmas": False, "use_karras_sigmas": False})
+        pipe = DiffusionPipeline.from_pretrained(QWEN, scheduler=sch, torch_dtype=torch.bfloat16)
+        pipe.load_lora_weights(QWEN_LORA, weight_name=QWEN_LORA_DOSYA)
+        try:
+            pipe.fuse_lora(lora_scale=1.0)
+            pipe.unload_lora_weights()
+            pipe.transformer.to("cuda")
+            from torchao.quantization import float8_weight_only, quantize_
+
+            quantize_(pipe.transformer, float8_weight_only())
+            torch.cuda.empty_cache()
+            pipe.text_encoder.to("cuda")
+            pipe.vae.to("cuda")
+            self.kip = "float8 (hepsi GPU'da)"
+        except Exception as e:  # noqa
+            print("[ressam] float8 olmadı, parça parça kipe geçiliyor:", type(e).__name__, str(e)[:300], flush=True)
+            del pipe
+            torch.cuda.empty_cache()
+            pipe = DiffusionPipeline.from_pretrained(QWEN, scheduler=sch, torch_dtype=torch.bfloat16)
+            pipe.load_lora_weights(QWEN_LORA, weight_name=QWEN_LORA_DOSYA)
+            pipe.enable_model_cpu_offload()
+            self.kip = "bf16 + parça parça (cpu offload)"
+        pipe.vae.enable_tiling()
+        self.pipe = pipe
+        # ısınma (ilk çizimin derleme/önbellek gecikmesi kullanıcıya yansımasın)
+        pipe("warm up", negative_prompt=" ", num_inference_steps=2, true_cfg_scale=1.0, width=512, height=512)
+        from rembg import new_session
+
+        try:
+            self.rb = new_session(REMBG_MODEL)
+        except Exception:  # noqa
+            self.rb = new_session("isnet-general-use")
+        self.yukleme = round(time.time() - t0, 1)
+        print(f"[ressam] hazır {self.yukleme} sn, kip: {self.kip}, GPU {round(torch.cuda.memory_allocated() / 1e9, 1)} GB", flush=True)
+
+    def _cut(self, im):
+        """Motor._cut ile aynı temizlik: arka plan sil + delik doldur + kenar + kırıntı + ayak gölgesi. → (RGBA, düz_mü, bg)"""
+        import numpy as np
+        from rembg import remove
+
+        rgb = np.array(im.convert("RGB"))
+        bg = border_bg(rgb)
+        w = 24
+        edge = np.concatenate([rgb[:w].reshape(-1, 3), rgb[-w:].reshape(-1, 3),
+                               rgb[:, :w].reshape(-1, 3), rgb[:, -w:].reshape(-1, 3)]).astype(np.int32)
+        busy = float((np.sqrt(((edge - np.median(edge, axis=0)) ** 2).sum(-1)) > 40).mean())
+        raw = remove(im.convert("RGB"), session=self.rb, post_process_mask=True)
+        if busy >= 0.15:  # desenli/sahneli arka plan: tek büyük figür çıkarsa onu ver, yoksa tam resim
+            from scipy import ndimage
+
+            cut = drop_debris(raw)
+            al = np.array(cut)[..., 3] > 0
+            lab, n = ndimage.label(al, structure=np.ones((3, 3)))
+            if n and 0.04 < float(al.mean()) < 0.85 and np.bincount(lab.ravel())[1:].max() / max(1, al.sum()) > 0.7:
+                return cut, True, None
+            return im.convert("RGBA"), False, None
+        out = fill_holes(rgb, raw, bg)
+        final = ayak_golgesi_sil(drop_debris(defringe(out, bg=bg)), bg)
+        alan = lambda x: int((np.array(x)[..., 3] > 0).sum())
+        if alan(final) < 0.6 * max(1, alan(out)):
+            final = drop_debris(out)
+        return final, True, bg
+
+    def generate(self, body):
+        import base64
+        import io
+        import time
+
+        import torch
+
+        t0 = time.time()
+        prompt = str(body.get("prompt", "")).strip()[:2000] or "game character"
+        n = max(1, min(4, int(body.get("n", 1))))
+        seed = int(body.get("seed", 42)) % (2**31)
+        style = str(body.get("style", "other"))
+        W = max(512, min(1664, int(body.get("width", 1024)) // 16 * 16))
+        H = max(512, min(1664, int(body.get("height", 1024)) // 16 * 16))
+        auto = bool(body.get("auto", False)) or bool(body.get("transparent", False))
+        native = bool(body.get("native", False))
+        imgs, plains, grids, sureler = [], [], [], []
+        for k in range(n):
+            t = time.time()
+            im = self.pipe(prompt, negative_prompt=" ", num_inference_steps=8, true_cfg_scale=1.0, width=W, height=H,
+                           generator=torch.Generator("cuda").manual_seed(seed + k)).images[0]
+            sureler.append(round(time.time() - t, 1))
+            if auto:
+                im, duz, bg = self._cut(im)
+                plains.append(duz)
+                if duz:
+                    im, g = auto_clean(im, style, bg, native)
+                    grids.append(g)
+            b = io.BytesIO(); im.save(b, format="PNG")
+            imgs.append(base64.b64encode(b.getvalue()).decode())
+        return {"images": imgs, "plain": plains, "grid": grids, "seconds": round(time.time() - t0, 2),
+                "cizim_sn": sureler, "motor": "qwen-image", "kip": self.kip}
+
+    @modal.asgi_app()
+    def web(self):
+        import os
+        import threading
+        import time as _time
+        import uuid
+
+        from fastapi import FastAPI, Header, HTTPException
+        from fastapi.middleware.cors import CORSMiddleware
+
+        api = FastAPI()
+        api.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["*"])
+        key = os.environ.get("SPRITE_KEY", "")
+        isler = {}
+        gpu_kilit = threading.Lock()
+
+        @api.get("/")
+        def health():
+            # site sayfa açılınca buraya dokunur → motor uyanır (önceden uyandırma); hazır olup olmadığını söyler
+            return {"ok": True, "motor": "qwen-image + lightning", "gpu": "L40S", "hazir": self._hazir.is_set(),
+                    "kip": getattr(self, "kip", None), "yukleme_sn": getattr(self, "yukleme", None)}
+
+        def calistir(body):
+            try:
+                with gpu_kilit:
+                    self._hazir_bekle()
+                    return self.generate(body)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            except HTTPException:
+                raise
+            except Exception as e:  # noqa
+                import traceback
+
+                iz = traceback.format_exc()
+                print(iz, flush=True)
+                raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)[:300]} | {iz[-700:]}")
+
+        @api.post("/is/{tur}")
+        def is_baslat(tur: str, body: dict, x_sprite_key: str = Header(default="")):
+            if key and x_sprite_key != key:
+                raise HTTPException(status_code=401, detail="Anahtar yanlış")
+            if tur != "generate":
+                raise HTTPException(status_code=404, detail="bilinmeyen iş türü")
+            for k in [k for k, v in isler.items() if _time.time() - v["t0"] > 1800]:
+                isler.pop(k, None)
+            is_id = uuid.uuid4().hex[:16]
+            isler[is_id] = {"durum": "calisiyor", "t0": _time.time()}
+
+            def calis():
+                try:
+                    isler[is_id].update(durum="bitti", sonuc=calistir(body))
+                except HTTPException as e:
+                    isler[is_id].update(durum="hata", kod=e.status_code, detay=str(e.detail)[:1200])
+                except Exception as e:  # noqa
+                    isler[is_id].update(durum="hata", kod=500, detay=f"{type(e).__name__}: {str(e)[:600]}")
+
+            threading.Thread(target=calis, daemon=True).start()
+            return {"is": is_id}
+
+        @api.get("/is/{is_id}")
+        def is_durum(is_id: str, x_sprite_key: str = Header(default="")):
+            if key and x_sprite_key != key:
+                raise HTTPException(status_code=401, detail="Anahtar yanlış")
+            d = isler.get(is_id)
+            if d is None:
+                raise HTTPException(status_code=404, detail="iş bulunamadı (motor yeniden başlamış olabilir)")
+            if d["durum"] == "calisiyor":
+                return {"durum": "calisiyor", "sure": round(_time.time() - d["t0"]), "hazir": self._hazir.is_set()}
+            isler.pop(is_id, None)
+            return {k: v for k, v in d.items() if k != "t0"}
+
+        @api.post("/generate")
+        def generate(body: dict, x_sprite_key: str = Header(default="")):
+            if key and x_sprite_key != key:
+                raise HTTPException(status_code=401, detail="Anahtar yanlış")
+            return calistir(body)
 
         return api
