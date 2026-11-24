@@ -9,6 +9,7 @@
 - **Atölye** — arka plan silme, boşluk kırpma, pixel art (boyut + renk sayısı), kontur.
 - **Animasyon** — tek sprite'tan bekleme, yürüme, koşma, saldırı, hasar, ölüm, süzülme, dönme kareleri.
 - **Sheet** — kareleri tek PNG'de birleştirir; JSON ve Godot 4 `SpriteFrames` (.tres) indirir.
+- **Tileset** — iki dikişsiz zemin dokusundan geçiş seti (16'lık köşe/Wang ya da 47'lik blob) üretir; rastgele harita önizlemesi; Godot 4 `TileSet` (.tres, arazi/terrain ayarlı) ve .zip indirir. Tarayıcıda çalışır, motor harcamaz.
 - **Galeri** — her şey tarayıcıda (IndexedDB) saklanır; hepsi tek ZIP olarak indirilebilir.
 
 ## Yol haritası

@@ -73,3 +73,13 @@ dialog::backdrop{background:#000a}
 
 /* En iyisini seç: tarife en uygun aday */
 .item.eniyi { outline: 2px solid #f5c542; outline-offset: -2px; }
+
+/* Tileset */
+.karoSec{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+@media (max-width:560px){.karoSec{grid-template-columns:1fr}}
+.karoKutu{display:flex;gap:10px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px}
+.karoKutu canvas{width:64px;height:64px;border-radius:6px;background:#2a2e3a;flex:0 0 64px;image-rendering:auto}
+.karoKutu>div{min-width:0;flex:1}
+.karoKutu label{margin:0 0 4px}
+.karoKutu .row{margin:6px 0 0}
+#cvKaroHarita{max-width:100%;image-rendering:pixelated}

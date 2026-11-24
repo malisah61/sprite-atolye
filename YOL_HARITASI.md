@@ -50,7 +50,10 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - 23 Kasım (gündüz, kullanıcıyla): `pozlar.py` (kodla OpenPose iskeletleri: bekleme, yürü, koş, saldır, ateş, zıpla, hasar), `anim_dene.yml`, canlı "animator" uygulaması (L4; T4'te bellek yetmedi; xinsir/controlnet-openpose-sdxl-1.0 Apache-2.0), "yan yana" yöntem (solda referans, sağda yeni kare), iş kuyruğu (`/is/animate`), sitede Animasyon → "Yapay zekâ ile", `anim_uret.yml`. Ateşte namlu alevi kodla.
 - 24 Kasım (gece): **kare tutarlılığı** — (1) boy eşitleme (GPU'suz, `pozlar.boy_esitle`), (2) üçlü tuval (referans | önceki kare | yeni) varsayılan, sitede "Tutarlı silah/kıyafet" kutusu, (3) ayak dibi gölge temizliği (görsel motoru da). Karşılaştırma: `anim_dene` BCD (saldırı, seed 7) → `deneme-sonuclari/animasyon/20261123-2355/`. Süre: 8 kare yan yana 164 sn → üçlü 268 sn (L4 ≈ 0,06 $/animasyon).
 - Sırada: silahlı karakterler için ayrı saldırı pozları (süngü hamlesi, dipçik), başlık/bere tutarlılığı (tarif başı), arkadan/önden yürüme (madde 4 ile birlikte), 12 karelik akıcı döngüler.
-## 3. ⬜ Tileset (Wang/blob geçişleri, Godot .tres)
+## 3. 🔄 Tileset (Wang/blob geçişleri, Godot .tres)
+- 25 Kasım gece (motorsuz — motorda gündüz canlı oturum vardı): sitede **Tileset** sekmesi. İki dikişsiz doku (galeriden ya da yükle) → **16'lık köşe seti** (Godot "Match Corners") ya da **47'lik blob seti** (+1 düz B karosu, "Match Corners and Sides"). Geçiş alanı köşe/ızgara değerlerinden çift doğrusal + karo boyunda periyodik gürültü (her karo her komşusuyla dikişsiz), kenar yumuşaklığı (0 = pixel art keskin), dalga, B tarafında kenar gölgesi. Rastgele harita önizlemesi (dikiş/eşleşme kontrolü), PNG / Godot 4 TileSet .tres (arazi bitleri dolu) / .zip / galeri.
+- Test: playwright ile gerçek çimen dokusu (motor test görseli) + kodla toprak; köşe 64, blob 64, blob 16 (keskin) → haritalarda dikiş yok, geçişler doğru. Godot bu ortamda yok → .tres Godot'ta açılarak henüz denenmedi.
+- Sırada: .tres'i Godot'ta doğrulama, dokuyu birkaç karoya yayma (tekrar hissini azaltmak için karo varyantları), izometrik karo, motorla geçiş kenarını "boyatma" (ör. çimen saçakları).
 ## 4. 🔄 Yön seti iyileştirme (arkadan görünüş, 4/8 yön) — Blender yolu (kullanıcı isteği, 22 Kasım akşam)
 - `uc_boyut.yml` (GPU'suz, GitHub Actions, ~9 dk): görsel → **TripoSR** (MIT) ile 3D (.glb/.ply, CPU'da ~1 dk) → **Blender 4.2 LTS** (GPL; çıktılar serbest) ile 4/8 yönden şeffaf render → isteğe bağlı **motorla yeniden boyama** (render = şekil iskeleti, /edit güç 0.55; orijinal = IP-Adapter referansı 0.5).
 - İlk sonuç (çizgi film kadın): ham 3D render bulanık (yüz silik) ama yönler tutarlı; **boyanmış hali çok iyi** — gerçek arkadan görünüş, kıyafet/saç/çizme her yönde aynı. Kusur: yan/arka görünüşte orijinalde olmayan bir sırt çantası eklendi (omuz kayışından). Maliyet: 4 yön boyama ≈ 130 sn GPU ≈ 0,02 $.
@@ -76,6 +79,7 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - kararli-v9: 2026-11-23 gece (yüz düzeltme öncesi)
 - kararli-v10: 2026-11-23 sabah (animator L4 öncesi — gündüz oturumu)
 - kararli-v11: 2026-11-24 gece (animasyon tutarlılığı öncesi)
+- kararli-v12: 2026-11-25 gece (Tileset sekmesi öncesi)
 
 ## Gece günlüğü
 - 2026-11-20: 0a başladı — karşılaştırma iş akışı eklendi; DreamShaper deneme motoru açılmadı (3/3 deneme hakkı kullanıldı), canlı motor değişmedi.
@@ -93,6 +97,8 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 
 - 2026-11-23 (gece): 0d — yüz düzeltme (motor + site + test), Komando için komando portreleri (Reilly, Blake) — bu oturumda Komando'ya yazma izni yoktu (add_repo yok, push 403) → `deneme-sonuclari/siparis/komando/portreler-20261123/`.
 
+- 2026-11-25 (gece): motor gündüz canlı oturumda kullanıldığı için motorsuz iş — madde 3 Tileset sekmesi (site). Motor kurulumu/üretim yok. Komando'ya yine yazma izni yok (oturuma bağlı değil, push 403).
+
 ## Tahmini Modal harcaması (Kasım 2026)
 - 19-20 Kasım: ~17 motor kurulumu + ~8 üretim + 3 karşılaştırma denemesi → tahmini 2-4 $ (20 $ sınırının çok altında).
 - 20 Kasım akşamı (gündüz oturumu): ~4 kurulum+test daha → +~1 $
@@ -103,3 +109,4 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - 23 Kasım gece: 2 kurulum/test (~17 dk'lık) + 2 portre üretimi (+2 başarısız) → +~0,45 $. Ay toplamı tahmini ~6-7 $ (20 $ sınırının altında).
 - 24 Kasım gece: 1 animasyon denemesi (L4 ~16 dk) + 1 kurulum/duman testi → +~0,35 $. Ay toplamı tahmini ~7-8 $ (20 $ sınırının altında).
 - 24 Kasım (gündüz, kullanıcıyla): Z-Image + Qwen denemeleri, 2 fil-kedi üretimi, Ressam kurulumu/testi, animatör hata ayıklama → +~1,2 $. Ay toplamı tahmini ~9-10 $ (20 $ sınırının altında).
+- 25 Kasım gece: motor kullanılmadı → +0 $. Ay toplamı tahmini ~9-10 $.

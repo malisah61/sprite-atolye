@@ -16,6 +16,7 @@
     <button data-tab="atolye">Atölye</button>
     <button data-tab="anim">Animasyon</button>
     <button data-tab="sheet">Sheet</button>
+    <button data-tab="karo">Tileset</button>
     <button data-tab="galeri">Galeri</button>
   </nav>
 </header>
@@ -235,6 +236,44 @@
       <button id="btnSheetJson">JSON indir</button>
       <button id="btnSheetTres">Godot .tres indir</button>
     </div>
+  </div>
+</section>
+
+<!-- TILESET -->
+<section id="karo" class="tab">
+  <div class="card">
+    <p class="hint">İki dikişsiz zemin dokusundan (ör. çimen + toprak) aralarındaki <b>geçiş parçalarını</b> üretir: kenarlar, köşeler, iç köşeler. Godot 4 için arazi (terrain) ayarlı <b>TileSet .tres</b> indirilir; Godot'ta Terrain fırçasıyla boyayınca geçişler kendiliğinden yerleşir. Tamamen tarayıcıda, ücretsiz.</p>
+    <p class="hint">Doku yoksa Üret sekmesinde Tür: <i>Zemin dokusu (tile)</i> ile üret, galeriye kaydet.</p>
+    <div class="karoSec">
+      <div class="karoKutu"><canvas id="cvKaroA" width="64" height="64"></canvas><div><label>Zemin A (üstteki / adacık)</label><input id="karoAdA" value="cimen"><div class="row"><button id="btnKaroA">Galeriden</button><label class="filebtn">Yükle<input type="file" id="dosyaKaroA" accept="image/*" hidden></label></div></div></div>
+      <div class="karoKutu"><canvas id="cvKaroB" width="64" height="64"></canvas><div><label>Zemin B (alttaki / taban)</label><input id="karoAdB" value="toprak"><div class="row"><button id="btnKaroB">Galeriden</button><label class="filebtn">Yükle<input type="file" id="dosyaKaroB" accept="image/*" hidden></label></div></div></div>
+    </div>
+    <div class="grid2">
+      <div><label>Set türü</label>
+        <select id="karoSet">
+          <option value="kose">16'lık köşe seti (Wang) — basit</option>
+          <option value="blob">47'lik blob seti — kenar + köşe, en doğal</option>
+        </select></div>
+      <div><label>Karo boyu (px)</label>
+        <select id="karoBoy"><option>16</option><option>32</option><option selected>64</option><option>128</option><option>256</option></select></div>
+      <div><label>Kenar yumuşaklığı <output id="oKaroYum">0.12</output></label><input type="range" id="karoYum" min="0" max="0.4" step="0.02" value="0.12"></div>
+      <div><label>Kenar dalgası <output id="oKaroDal">0.22</output></label><input type="range" id="karoDal" min="0" max="0.45" step="0.01" value="0.22"></div>
+      <div><label>Kenar gölgesi <output id="oKaroGol">0.35</output></label><input type="range" id="karoGol" min="0" max="0.8" step="0.05" value="0.35"></div>
+      <div><label>Dalga tohumu</label><input id="karoTohum" type="number" value="7" min="0" max="9999"></div>
+    </div>
+    <p class="hint">Pixel art için yumuşaklığı 0 yap (keskin kenar). Dokular karo boyuna küçültülür; dikişsiz oldukları için karolar yan yana kusursuz birleşir.</p>
+    <div class="row"><button id="btnKaroYap" class="primary">Tileset oluştur</button></div>
+    <div class="stage checker"><canvas id="cvKaroSet"></canvas></div>
+    <h3>Harita önizlemesi (rastgele)</h3>
+    <div class="row"><button id="btnKaroHarita">Yeni rastgele harita</button><label><input type="checkbox" id="karoIzgara"> Izgarayı göster</label></div>
+    <div class="stage"><canvas id="cvKaroHarita"></canvas></div>
+    <div class="row">
+      <button id="btnKaroPng">PNG indir</button>
+      <button id="btnKaroTres">Godot .tres indir</button>
+      <button id="btnKaroZip" class="primary">Hepsi (.zip)</button>
+      <button id="btnKaroGaleri">Galeriye kaydet</button>
+    </div>
+    <p class="hint">Godot: PNG ve .tres'i projede <code>res://assets/tiles/</code> içine koy → TileMapLayer'a TileSet olarak ver → TileMap paneli → Terrains → "A" ya da "B" ile boya.</p>
   </div>
 </section>
 

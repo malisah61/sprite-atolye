@@ -1480,5 +1480,258 @@ $('#btnGaleriZip').onclick = async () => {
   downloadBlob(makeZip(files), 'sprite-atolye-galeri.zip');
 };
 
+/* ---------------- Tileset: iki dikişsiz dokudan geçiş seti (16 köşe / 47 blob) + Godot .tres ---------------- */
+const KARO = { A: null, B: null, set: null, sheet: null, tiles: [], mod: 'kose', boy: 64, haritaTohum: 1 };
+
+/* Tekrar eden (karo boyunda periyodik) değer gürültüsü — kenarlar her komşuyla aynı kalır */
+function karoGurultu(T, tohum) {
+  const out = new Float32Array(T * T);
+  const katlar = [[2, 0.45], [4, 0.4], [8, 0.22], [16, 0.1]];
+  let rs = (tohum * 9301 + 49297) >>> 0;
+  const rnd = () => { rs = (rs * 1664525 + 1013904223) >>> 0; return rs / 4294967296; };
+  for (const [g, a] of katlar) {
+    const izg = new Float32Array(g * g).map(() => rnd() * 2 - 1);
+    const v = (i, j) => izg[((j % g + g) % g) * g + ((i % g + g) % g)];
+    for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
+      const fx = (x + 0.5) / T * g, fy = (y + 0.5) / T * g;
+      const i = Math.floor(fx), j = Math.floor(fy);
+      let tx = fx - i, ty = fy - j;
+      tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty);
+      const a0 = v(i, j) + (v(i + 1, j) - v(i, j)) * tx;
+      const a1 = v(i, j + 1) + (v(i + 1, j + 1) - v(i, j + 1)) * tx;
+      out[y * T + x] += (a0 + (a1 - a0) * ty) * a;
+    }
+  }
+  return out;
+}
+
+/* Dokuyu karo boyuna getir (dikişsiz doku → dikişsiz karo) */
+function karoDoku(src, T) {
+  const c = newCanvas(T, T);
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  // Kare değilse ortadan kare kırp
+  const m = Math.min(src.width, src.height);
+  ctx.drawImage(src, (src.width - m) / 2, (src.height - m) / 2, m, m, 0, 0, T, T);
+  return ctx.getImageData(0, 0, T, T).data;
+}
+
+/* Set tanımları. Her karo: g = 3x3 ızgara (1 = A, 0 = B), bitler Godot peering için. */
+const YON8 = ['top_left_corner', 'top_side', 'top_right_corner', 'right_side', 'bottom_right_corner', 'bottom_side', 'bottom_left_corner', 'left_side'];
+function koseSeti() {
+  // bit: 1 = sol üst, 2 = sağ üst, 4 = sağ alt, 8 = sol alt köşe A mı
+  const list = [];
+  for (let m = 0; m < 16; m++) {
+    const tl = m & 1 ? 1 : 0, tr = m & 2 ? 1 : 0, br = m & 4 ? 1 : 0, bl = m & 8 ? 1 : 0;
+    const say = tl + tr + br + bl;
+    list.push({
+      anahtar: m, koseler: [tl, tr, br, bl],
+      merkez: say >= 2 ? 0 : 1, // Godot terrain no: 0 = A, 1 = B
+      bitler: { top_left_corner: tl ? 0 : 1, top_right_corner: tr ? 0 : 1, bottom_right_corner: br ? 0 : 1, bottom_left_corner: bl ? 0 : 1 },
+    });
+  }
+  return list;
+}
+// 8 komşu: 0 TL,1 T,2 TR,3 R,4 BR,5 B,6 BL,7 L → köşe sadece iki yanı da A ise sayılır
+function blobNormal(m) {
+  const b = i => (m >> i) & 1;
+  let n = m;
+  if (!(b(1) && b(7))) n &= ~(1 << 0);
+  if (!(b(1) && b(3))) n &= ~(1 << 2);
+  if (!(b(3) && b(5))) n &= ~(1 << 4);
+  if (!(b(5) && b(7))) n &= ~(1 << 6);
+  return n;
+}
+function blobSeti() {
+  const set = new Set();
+  for (let m = 0; m < 256; m++) set.add(blobNormal(m));
+  const list = [...set].sort((a, b) => a - b).map(m => {
+    const b = i => (m >> i) & 1;
+    const bitler = {}; YON8.forEach((y, i) => bitler[y] = b(i) ? 0 : 1);
+    return { anahtar: m, g: [[b(0), b(1), b(2)], [b(7), 1, b(3)], [b(6), b(5), b(4)]], merkez: 0, bitler };
+  });
+  // 48. karo: tamamen B
+  const bitler = {}; YON8.forEach(y => bitler[y] = 1);
+  list.push({ anahtar: 'B', g: [[0, 0, 0], [0, 0, 0], [0, 0, 0]], merkez: 1, bitler });
+  return list; // 47 + 1
+}
+
+/* Bir karonun A-oranı alanı (0..1): köşe setinde 2x2 köşeden, blob'da 3x3 ızgaradan çift doğrusal */
+function karoAlan(k, u, v) {
+  if (k.koseler) {
+    const [tl, tr, br, bl] = k.koseler;
+    const a = tl + (tr - tl) * u, b = bl + (br - bl) * u;
+    return a + (b - a) * v;
+  }
+  const g = k.g;
+  const fx = u * 2, fy = v * 2;
+  const i = Math.min(1, Math.floor(fx)), j = Math.min(1, Math.floor(fy));
+  const tx = fx - i, ty = fy - j;
+  const a = g[j][i] + (g[j][i + 1] - g[j][i]) * tx;
+  const b = g[j + 1][i] + (g[j + 1][i + 1] - g[j + 1][i]) * tx;
+  return a + (b - a) * ty;
+}
+
+function karoCiz(k, T, dA, dB, gur, yum, dal, gol) {
+  const c = newCanvas(T, T);
+  const ctx = c.getContext('2d');
+  const im = ctx.createImageData(T, T), d = im.data;
+  for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
+    const u = (x + 0.5) / T, v = (y + 0.5) / T;
+    const f = karoAlan(k, u, v);
+    // Gürültü sadece geçişte: tam A (1) ya da tam B (0) bölgede kenar yok
+    const i = y * T + x;
+    // Blob'da alan iki kat dik değişir → aynı dalga boyu için gürültü de iki kat
+    const s = f <= 0 ? -1 : f >= 1 ? 1 : (f - 0.5) + gur[i] * dal * (k.g ? 1.9 : 1) * Math.min(1, 4 * f * (1 - f) * 1.6);
+    let al;
+    if (yum <= 0.001) al = s >= 0 ? 1 : 0;
+    else { const t = Math.max(0, Math.min(1, (s + yum / 2) / yum)); al = t * t * (3 - 2 * t); }
+    // Kenar gölgesi: B tarafında, sınıra yakın koyulaştır
+    const mesafe = Math.max(0, -s);
+    const g = gol > 0 && s < 0 && f > 0 ? gol * Math.exp(-mesafe / Math.max(0.02, 0.06 + yum * 0.5)) : 0;
+    const o = i * 4;
+    for (let ch = 0; ch < 3; ch++) {
+      const b = dB[o + ch] * (1 - g);
+      d[o + ch] = Math.round(b + (dA[o + ch] - b) * al);
+    }
+    d[o + 3] = 255;
+  }
+  ctx.putImageData(im, 0, 0);
+  return c;
+}
+
+function karoOlustur() {
+  if (!KARO.A || !KARO.B) return toast('Önce iki zemin dokusu seç (A ve B)');
+  const T = +$('#karoBoy').value;
+  const mod = $('#karoSet').value;
+  const yum = +$('#karoYum').value, dal = +$('#karoDal').value, gol = +$('#karoGol').value;
+  const tohum = Math.max(0, +$('#karoTohum').value || 0);
+  const dA = karoDoku(KARO.A, T), dB = karoDoku(KARO.B, T);
+  const gur = karoGurultu(T, tohum);
+  const set = mod === 'blob' ? blobSeti() : koseSeti();
+  const sut = mod === 'blob' ? 8 : 4;
+  const sat = Math.ceil(set.length / sut);
+  const sheet = newCanvas(sut * T, sat * T);
+  const sc = sheet.getContext('2d');
+  set.forEach((k, n) => {
+    k.x = n % sut; k.y = Math.floor(n / sut);
+    k.canvas = karoCiz(k, T, dA, dB, gur, yum, dal, gol);
+    sc.drawImage(k.canvas, k.x * T, k.y * T);
+  });
+  Object.assign(KARO, { set, sheet, mod, boy: T, sut, sat });
+  const v = $('#cvKaroSet');
+  v.width = sheet.width; v.height = sheet.height;
+  v.getContext('2d').drawImage(sheet, 0, 0);
+  showScaled(v, 640);
+  karoHarita();
+  toast(set.length + ' karo hazır');
+}
+
+/* Rastgele harita: kendi karolarımızla döşeyip dikiş/eşleşme kontrolü */
+function karoHarita() {
+  if (!KARO.set) return;
+  const T = KARO.boy, W = 14, H = 9;
+  let rs = (KARO.haritaTohum * 2654435761) >>> 0;
+  const rnd = () => { rs = (rs * 1664525 + 1013904223) >>> 0; return rs / 4294967296; };
+  const c = newCanvas(W * T, H * T), ctx = c.getContext('2d');
+  // Hücre/köşe alanı: rastgele + 2 kez yumuşatma → adacıklar
+  const gw = W + 1, gh = H + 1;
+  let a = Array.from({ length: gh }, () => Array.from({ length: gw }, () => rnd()));
+  for (let k = 0; k < 2; k++) a = a.map((r, y) => r.map((_, x) => {
+    let s = 0, n = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const yy = y + dy, xx = x + dx; if (yy >= 0 && yy < gh && xx >= 0 && xx < gw) { s += a[yy][xx]; n++; } }
+    return s / n;
+  }));
+  const ort = a.flat().sort((p, q) => p - q)[Math.floor(gw * gh / 2)];
+  const A = (x, y) => (y >= 0 && y < gh && x >= 0 && x < gw && a[y][x] > ort) ? 1 : 0;
+  const bul = {};
+  KARO.set.forEach(k => bul[k.anahtar] = k);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let k;
+    if (KARO.mod === 'kose') {
+      k = bul[A(x, y) | A(x + 1, y) << 1 | A(x + 1, y + 1) << 2 | A(x, y + 1) << 3];
+    } else {
+      if (!A(x, y)) k = bul.B;
+      else {
+        const m = A(x - 1, y - 1) | A(x, y - 1) << 1 | A(x + 1, y - 1) << 2 | A(x + 1, y) << 3 | A(x + 1, y + 1) << 4 | A(x, y + 1) << 5 | A(x - 1, y + 1) << 6 | A(x - 1, y) << 7;
+        k = bul[blobNormal(m)];
+      }
+    }
+    ctx.drawImage(k.canvas, x * T, y * T);
+  }
+  if ($('#karoIzgara').checked) {
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = Math.max(1, T / 64);
+    for (let x = 0; x <= W; x++) { ctx.beginPath(); ctx.moveTo(x * T, 0); ctx.lineTo(x * T, H * T); ctx.stroke(); }
+    for (let y = 0; y <= H; y++) { ctx.beginPath(); ctx.moveTo(0, y * T); ctx.lineTo(W * T, y * T); ctx.stroke(); }
+  }
+  const v = $('#cvKaroHarita');
+  v.width = c.width; v.height = c.height;
+  v.getContext('2d').drawImage(c, 0, 0);
+  v.style.width = '100%'; v.style.height = 'auto';
+}
+
+function karoAd() { return slug(($('#karoAdA').value || 'a') + '-' + ($('#karoAdB').value || 'b') + '-' + KARO.mod).replace(/-/g, '_'); }
+
+/* Godot 4 TileSet (.tres): tek atlas, bir arazi seti, iki arazi (A=0, B=1) */
+function karoTres(resPath) {
+  const T = KARO.boy;
+  const renk = cv => { const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; let r = 0, g = 0, b = 0, n = 0; for (let i = 0; i < d.length; i += 16) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; } return `Color(${(r / n / 255).toFixed(3)}, ${(g / n / 255).toFixed(3)}, ${(b / n / 255).toFixed(3)}, 1)`; };
+  const adA = ($('#karoAdA').value || 'A').replace(/"/g, ''), adB = ($('#karoAdB').value || 'B').replace(/"/g, '');
+  let s = `[gd_resource type="TileSet" load_steps=3 format=3]\n\n`;
+  s += `[ext_resource type="Texture2D" path="${resPath}" id="1_tex"]\n\n`;
+  s += `[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_1"]\ntexture = ExtResource("1_tex")\ntexture_region_size = Vector2i(${T}, ${T})\n`;
+  for (const k of KARO.set) {
+    const p = `${k.x}:${k.y}/0`;
+    s += `${p} = 0\n${p}/terrain_set = 0\n${p}/terrain = ${k.merkez}\n`;
+    for (const [y, val] of Object.entries(k.bitler)) s += `${p}/terrains_peering_bit/${y} = ${val}\n`;
+  }
+  s += `\n[resource]\ntile_size = Vector2i(${T}, ${T})\n`;
+  s += `terrain_set_0/mode = ${KARO.mod === 'blob' ? 0 : 1}\n`;
+  s += `terrain_set_0/terrain_0/name = "${adA}"\nterrain_set_0/terrain_0/color = ${renk(KARO.A)}\n`;
+  s += `terrain_set_0/terrain_1/name = "${adB}"\nterrain_set_0/terrain_1/color = ${renk(KARO.B)}\n`;
+  s += `sources/0 = SubResource("TileSetAtlasSource_1")\n`;
+  return s;
+}
+
+async function karoSecGaleri(hangi) {
+  const [it] = await pickFromGallery('Zemin dokusu seç (' + hangi + ')', false);
+  if (!it) return;
+  karoAyarla(hangi, await blobToCanvas(it.blob), it.name);
+}
+function karoAyarla(hangi, c, ad) {
+  KARO[hangi] = c;
+  const v = $('#cvKaro' + hangi), ctx = v.getContext('2d');
+  ctx.clearRect(0, 0, 64, 64); ctx.imageSmoothingEnabled = true;
+  const m = Math.min(c.width, c.height);
+  ctx.drawImage(c, (c.width - m) / 2, (c.height - m) / 2, m, m, 0, 0, 64, 64);
+  if (ad) $('#karoAd' + hangi).value = slug(ad).split('-').slice(0, 2).join('-');
+}
+['A', 'B'].forEach(h => {
+  $('#btnKaro' + h).onclick = () => karoSecGaleri(h);
+  $('#dosyaKaro' + h).onchange = async e => { const f = e.target.files[0]; if (f) karoAyarla(h, await blobToCanvas(f), f.name.replace(/\.[^.]+$/, '')); e.target.value = ''; };
+});
+[['karoYum', 'oKaroYum'], ['karoDal', 'oKaroDal'], ['karoGol', 'oKaroGol']].forEach(([i, o]) => $('#' + i).oninput = () => $('#' + o).textContent = $('#' + i).value);
+$('#btnKaroYap').onclick = karoOlustur;
+$('#btnKaroHarita').onclick = () => { if (!KARO.set) return toast('Önce tileset oluştur'); KARO.haritaTohum++; karoHarita(); };
+$('#karoIzgara').onchange = () => karoHarita();
+$('#btnKaroPng').onclick = async () => { if (!KARO.sheet) return toast('Önce tileset oluştur'); downloadBlob(await canvasToBlob(KARO.sheet), karoAd() + '.png'); };
+$('#btnKaroTres').onclick = () => {
+  if (!KARO.sheet) return toast('Önce tileset oluştur');
+  const path = 'res://assets/tiles/' + karoAd() + '.png';
+  downloadBlob(new Blob([karoTres(path)], { type: 'text/plain' }), karoAd() + '.tres');
+  toast('PNG\'yi Godot projesinde ' + path + ' yoluna koy', 4000);
+};
+$('#btnKaroZip').onclick = async () => {
+  if (!KARO.sheet) return toast('Önce tileset oluştur');
+  const ad = karoAd(), enc = new TextEncoder();
+  const files = [
+    { name: ad + '.png', data: new Uint8Array(await (await canvasToBlob(KARO.sheet)).arrayBuffer()) },
+    { name: ad + '.tres', data: enc.encode(karoTres('res://assets/tiles/' + ad + '.png')) },
+    { name: 'BENIOKU.txt', data: enc.encode(`Sprite Atölye tileset — ${KARO.set.length} karo, ${KARO.boy} px, ${KARO.mod === 'blob' ? '47 blob (Match Corners and Sides)' : '16 köşe (Match Corners)'}\nİki dosyayı da Godot projende res://assets/tiles/ içine koy.\nTileMapLayer → Tile Set: ${ad}.tres → TileMap paneli → Terrains sekmesi → araziyi seçip boya.\n`) },
+  ];
+  downloadBlob(makeZip(files), ad + '.zip');
+};
+$('#btnKaroGaleri').onclick = async () => { if (!KARO.sheet) return toast('Önce tileset oluştur'); await saveToGallery(KARO.sheet, karoAd(), 'tileset'); toast('Galeriye kaydedildi'); };
+
 /* Başlangıç */
 renderSheetStrip();
