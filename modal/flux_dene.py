@@ -1,4 +1,4 @@
-"""FLUX.1-schnell DENEMESİ (canlı motora dokunmaz) — 24 Kasım, kullanıcı: "Gemini gibi hızlı ve anlayan bir yol yok mu?"
+"""Hızlı ve tarifi anlayan model DENEMESİ (Z-Image-Turbo; ilk aday FLUX.1-schnell kapılı çıktı) (canlı motora dokunmaz) — 24 Kasım, kullanıcı: "Gemini gibi hızlı ve anlayan bir yol yok mu?"
 
 SDXL tarifi kelime kelime okuyor (CLIP, 77 belirteç): "fil burunlu kedi" → bütün hayvan fil. FLUX.1-schnell (Apache-2.0,
 ticari kullanım serbest) tarifi T5 dil modeliyle okur, 4 adımda çizer. 12B model bf16'da L4'e (24 GB) sığmaz →
@@ -7,22 +7,24 @@ yan yana görsel hazırlanır. Çalıştırma: flux_dene.yml (modal run modal/fl
 """
 import modal
 
-FLUX = "black-forest-labs/FLUX.1-schnell"
+# 24 Kasım: FLUX.1-schnell HuggingFace'te artık giriş + onay istiyor (401 gated) → HF hesabı/anahtarı olmadan inmiyor.
+# Yerine Z-Image-Turbo (Tongyi-MAI, Apache-2.0, 6B, 8-9 adım, tarifi Qwen3 dil modeliyle okur, kapısız).
+MODEL = "Tongyi-MAI/Z-Image-Turbo"
+FLUX = MODEL  # eski ad (aşağıdaki kod)
 
 
 def indir():
-    from huggingface_hub import snapshot_download
+    from huggingface_hub import model_info, snapshot_download
 
-    snapshot_download(FLUX, allow_patterns=["*.json", "*.txt", "transformer/*.safetensors", "text_encoder/*.safetensors",
-                                            "text_encoder_2/*.safetensors", "tokenizer/*", "tokenizer_2/*", "vae/*.safetensors",
-                                            "scheduler/*", "model_index.json"])
+    bilgi = model_info(MODEL)
+    print("[model]", MODEL, "lisans:", (bilgi.card_data or {}).get("license"), "kapı:", bilgi.gated, flush=True)
+    snapshot_download(MODEL, ignore_patterns=["*.md", "assets/*", "*.png", "*.jpg", "*.gif", "*.mp4"])
 
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
-    .pip_install("torch==2.4.1", "diffusers==0.32.2", "transformers==4.46.3", "accelerate==1.1.1", "safetensors==0.4.5",
-                 "huggingface_hub==0.26.2", "sentencepiece==0.2.0", "protobuf==5.28.3", "bitsandbytes==0.44.1",
-                 "pillow==11.0.0", "numpy<2")
+    .pip_install("torch==2.6.0", "diffusers==0.36.0", "transformers==4.57.1", "accelerate==1.10.1", "safetensors==0.6.2",
+                 "huggingface_hub==0.35.3", "sentencepiece==0.2.0", "protobuf==5.28.3", "pillow==11.0.0", "numpy<2")
     .run_function(indir, timeout=3600)
 )
 app = modal.App("sprite-atolye-flux-deneme", image=image)
@@ -35,14 +37,18 @@ class Flux:
         import time
 
         import torch
-        from diffusers import BitsAndBytesConfig, FluxPipeline, FluxTransformer2DModel
+        from diffusers import DiffusionPipeline
 
         t0 = time.time()
-        q = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.bfloat16)
-        tr = FluxTransformer2DModel.from_pretrained(FLUX, subfolder="transformer", quantization_config=q, torch_dtype=torch.bfloat16)
-        self.pipe = FluxPipeline.from_pretrained(FLUX, transformer=tr, torch_dtype=torch.bfloat16)
-        self.pipe.to("cuda")
-        self.pipe.vae.enable_tiling()
+        self.pipe = DiffusionPipeline.from_pretrained(MODEL, torch_dtype=torch.bfloat16)
+        print("[model] boru hattı:", type(self.pipe).__name__, flush=True)
+        try:
+            self.pipe.to("cuda")
+            self.offload = False
+        except torch.cuda.OutOfMemoryError:  # L4'e sığmazsa parça parça
+            torch.cuda.empty_cache()
+            self.pipe.enable_model_cpu_offload()
+            self.offload = True
         self.yukleme = round(time.time() - t0, 1)
         print("[flux] yüklendi", self.yukleme, "sn,", round(torch.cuda.memory_allocated() / 1e9, 1), "GB", flush=True)
 
@@ -55,16 +61,16 @@ class Flux:
 
         cik = []
         # ısınma (ilk çağrı derleme/önbellek): süre ölçümüne katılmasın
-        self.pipe("warm up", num_inference_steps=1, guidance_scale=0.0, width=512, height=512, max_sequence_length=256)
+        self.pipe("warm up", num_inference_steps=1, guidance_scale=0.0, width=512, height=512)
         for ad, prompt, w, h, seed in isler:
             t = time.time()
-            im = self.pipe(prompt, num_inference_steps=4, guidance_scale=0.0, width=w, height=h, max_sequence_length=256,
-                           generator=torch.Generator("cpu").manual_seed(seed)).images[0]
+            im = self.pipe(prompt, num_inference_steps=9, guidance_scale=0.0, width=w, height=h,
+                           generator=torch.Generator("cuda").manual_seed(seed)).images[0]
             sn = round(time.time() - t, 1)
             b = io.BytesIO(); im.save(b, format="PNG")
             cik.append((ad, b.getvalue(), sn))
             print(f"[flux] {ad}: {sn} sn", flush=True)
-        return {"yukleme": self.yukleme, "gorseller": cik}
+        return {"yukleme": self.yukleme, "offload": self.offload, "gorseller": cik}
 
 
 BG = "isolated on a plain flat solid light gray background, no shadow, no scenery"
@@ -111,11 +117,11 @@ def main(seed: int = 42):
     # 1) FLUX (deneme uygulaması, uzaktan) — canlı motorla paralel değil, sırayla (tek GPU kotası)
     t0 = time.time()
     d = Flux().ciz.remote([(ad, p, w, h, seed) for ad, _s, w, h, p in TARIFLER] + [("fil_kedi_2", TARIFLER[0][4], 1216, 832, seed + 1)])
-    yaz(f"FLUX yükleme {d['yukleme']} sn, toplam {round(time.time() - t0)} sn (soğuk başlangıç dahil)")
+    yaz(f"Z-Image yükleme {d['yukleme']} sn, parça parça (offload): {d.get('offload')}, toplam {round(time.time() - t0)} sn (soğuk başlangıç dahil)")
     flux = {}
     for ad, png, sn in d["gorseller"]:
         flux[ad] = Image.open(io.BytesIO(png)).convert("RGB"); flux[ad].save(f"flux_{ad}_flux.png")
-        yaz(f"FLUX {ad}: {sn} sn")
+        yaz(f"Z-Image {ad}: {sn} sn")
     # 2) canlı SDXL motoru, aynı tarif + seed (ekstra kalite/temizlik kapalı: sadece çizim karşılaştırması)
     sdxl = {}
     url = os.environ.get("ESKI_URL", "https://malisah61--sprite-atolye-motor-web.us-east.modal.run")
@@ -140,10 +146,10 @@ def main(seed: int = 42):
     W = max(sum(int(c.width * H / c.height) + 10 for c in hc if c) for _, hc in satir) + 20
     tuval = Image.new("RGB", (W, 50 + len(satir) * (H + 40)), (30, 30, 34))
     dr = ImageDraw.Draw(tuval)
-    dr.text((10, 12), f"SOL: SDXL (simdiki motor)   SAG: FLUX.1-schnell (4 adim)   seed {seed}", fill=(255, 255, 255), font=font)
+    dr.text((10, 12), f"SOL: SDXL (simdiki motor)   SAG: Z-Image-Turbo (9 adim)   seed {seed}", fill=(255, 255, 255), font=font)
     y = 50
     for ad, hc in satir:
-        dr.text((10, y + 6), ad + ("  (SDXL | FLUX | FLUX seed+1 | FLUX cumle tarif)" if ad == "fil_kedi" else ""), fill=(255, 220, 120), font=font)
+        dr.text((10, y + 6), ad + ("  (SDXL | Z-Image | Z-Image seed+1 | Z-Image cumle tarif)" if ad == "fil_kedi" else ""), fill=(255, 220, 120), font=font)
         x = 10
         for c in hc:
             if c is None:

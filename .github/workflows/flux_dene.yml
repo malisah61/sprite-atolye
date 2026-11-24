@@ -1,4 +1,4 @@
-name: FLUX dene (hızlı ve tarifi anlayan model)
+name: Hızlı model dene (Z-Image-Turbo / FLUX)
 
 # FLUX.1-schnell (Apache-2.0) deneme uygulaması: aynı tarifler canlı SDXL motoruyla yan yana. Canlı motora dokunmaz,
 # iş bitince deneme uygulaması durdurulur. Sonuç: deneme-sonuclari dalında flux/<tarih>/ altına.
