@@ -17,6 +17,7 @@ jobs:
         run: |
           (timeout 420 modal app logs sprite-atolye > kayit.txt 2>&1 &)
           sleep 5
+          curl -s -w " ressam / -> %{http_code} %{time_total}s\n" --max-time 160 https://malisah61--sprite-atolye-ressam-web.us-east.modal.run/ || true
           for i in 1 2; do
             curl -s -o /dev/null -w "animator / -> %{http_code} %{time_total}s\n" --max-time 160 https://malisah61--sprite-atolye-animator-web.us-east.modal.run/ && sleep 10
           done

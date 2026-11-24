@@ -65,10 +65,13 @@ jobs:
           set -o pipefail
           modal deploy modal/app.py 2>&1 | tee deploy.log
           URL=$(grep -oE 'https://[a-zA-Z0-9.-]+motor-web[a-zA-Z0-9.-]*\.modal\.run' deploy.log | head -1)
-          AURL=$(grep -oE 'https://[a-zA-Z0-9.-]+animator-web[a-zA-Z0-9.-]*\.modal\.run' deploy.log | head -1)
+          [ -n "$URL" ] || URL="https://malisah61--sprite-atolye-motor-web.us-east.modal.run"
+          AURL=$(grep -oE 'https://[a-zA-Z0-9.-]+animator-web[a-zA-Z0-9.-]*\.modal\.run' deploy.log | head -1 || true)
+          [ -n "$AURL" ] || AURL="${URL/motor-web/animator-web}"  # modal çıktısı bazen adresi yazmıyor
           echo "MOTOR_URL=$URL" >> "$GITHUB_ENV"
           echo "ANIM_URL=$AURL" >> "$GITHUB_ENV"
-          RURL=$(grep -oE 'https://[a-zA-Z0-9.-]+ressam-web[a-zA-Z0-9.-]*\.modal\.run' deploy.log | head -1)
+          RURL=$(grep -oE 'https://[a-zA-Z0-9.-]+ressam-web[a-zA-Z0-9.-]*\.modal\.run' deploy.log | head -1 || true)
+          [ -n "$RURL" ] || RURL="${URL/motor-web/ressam-web}"
           echo "RESSAM_URL=$RURL" >> "$GITHUB_ENV"
           echo "### Ressam (Qwen-Image): $RURL" >> "$GITHUB_STEP_SUMMARY"
           echo "### Motor adresi: $URL" >> "$GITHUB_STEP_SUMMARY"
