@@ -885,6 +885,10 @@ class Motor:
         import torch
         from PIL import Image
 
+        import re
+
+        from PIL import ImageDraw
+
         log = []
         im = im.convert("RGB")
         degisti = False
@@ -911,8 +915,22 @@ class Motor:
             want = str(part.get("want", "")).strip()[:200]
             if not name or not want:
                 continue
+            uzanti = bool(re.search(r"\b(nose|trunk|snout|beak|proboscis|tusks?)\b", f"{name} {want}".lower()))
             for deneme in range(2):
                 mask, oran, box = self._part_mask(im, name)
+                if mask is None and uzanti:
+                    # 24 Kasım: yandan çizilen kedide CLIPSeg 'nose' bulamadı (çok küçük) → hortum hiç çizilmedi.
+                    # Yedek: yüz/kafa kutusunun ön-alt kısmı burun sayılır, maske oradan aşağı uzatılır.
+                    for yedek in ("face", "head"):
+                        _m, _o, hb = self._part_mask(im, yedek)
+                        if hb:
+                            bw, bh = hb[2] - hb[0], hb[3] - hb[1]
+                            box = (int(hb[0] + 0.3 * bw), int(hb[1] + 0.45 * bh), int(hb[2] - 0.1 * bw), int(hb[1] + 0.85 * bh))
+                            mask = Image.new("L", im.size, 0)
+                            ImageDraw.Draw(mask).ellipse(box, fill=255)
+                            oran = 0.0
+                            log.append({"parca": name, "durum": f"bulunamadı → {yedek} bölgesinden"})
+                            break
                 if mask is None:
                     log.append({"parca": name, "durum": "bulunamadı"})
                     break
@@ -929,7 +947,9 @@ class Motor:
                 g = torch.Generator("cuda").manual_seed(seed + 101 + i)
                 degisti = True
                 mask = self._uzat_maske(im, mask, box, name, want)
-                im = self.inp(prompt=f"{want}, {style_text}", negative_prompt=negative, image=im, mask_image=mask,
+                # yüze çizilen uzantıda kafa ana hayvanın kalsın ("fil hortumu" → bütün fil kafası olmasın)
+                ek_tarif = f", on a {base} face, {base} head" if (uzanti and base) else ""
+                im = self.inp(prompt=f"{want}{ek_tarif}, {style_text}", negative_prompt=negative, image=im, mask_image=mask,
                               width=im.width, height=im.height, strength=0.92, num_inference_steps=28,
                               guidance_scale=7.0, generator=g, ip_adapter_image=ipa).images[0]
         # son kat cila: yamaların dokusunu/ışığını bütünle eşitle (hafif img2img)
