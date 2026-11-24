@@ -1,25 +1,32 @@
 name: Modal kayıtları (hata ayıklama)
 
-# Animatörü uyandırır ve uygulamanın son kayıtlarını 4 dk boyunca yazar (GPU harcaması: animatörün açılışı kadar).
+# Uygulamanın kayıtlarını belirli süre izler; istenirse animatörü/ressamı uyandırır.
 on:
   workflow_dispatch:
+    inputs:
+      sure:
+        description: 'Kaç saniye izlensin'
+        default: '300'
+      uyandir:
+        description: 'Animatörü ve ressamı uyandır (true/false)'
+        default: 'false'
 
 jobs:
   kayit:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
     steps:
       - run: pip install --quiet modal
-      - name: Kayıtları izle + animatörü uyandır
+      - name: Kayıtları izle
         run: |
-          (timeout 420 modal app logs sprite-atolye > kayit.txt 2>&1 &)
+          (timeout ${{ inputs.sure }} modal app logs sprite-atolye > kayit.txt 2>&1 &)
           sleep 5
-          curl -s -w " ressam / -> %{http_code} %{time_total}s\n" --max-time 160 https://malisah61--sprite-atolye-ressam-web.us-east.modal.run/ || true
-          for i in 1 2; do
-            curl -s -o /dev/null -w "animator / -> %{http_code} %{time_total}s\n" --max-time 160 https://malisah61--sprite-atolye-animator-web.us-east.modal.run/ && sleep 10
-          done
-          sleep 20
-          grep -v "^\s*$" kayit.txt | tail -150
+          if [ "${{ inputs.uyandir }}" = "true" ]; then
+            curl -s -w " ressam / -> %{http_code} %{time_total}s\n" --max-time 160 https://malisah61--sprite-atolye-ressam-web.us-east.modal.run/ || true
+            curl -s -o /dev/null -w "animator / -> %{http_code} %{time_total}s\n" --max-time 160 https://malisah61--sprite-atolye-animator-web.us-east.modal.run/ || true
+          fi
+          sleep $(( ${{ inputs.sure }} + 5 ))
+          grep -v "^\s*$" kayit.txt | grep -v "it/s\]" | tail -200
