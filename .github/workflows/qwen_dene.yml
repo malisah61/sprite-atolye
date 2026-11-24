@@ -1,0 +1,45 @@
+name: Qwen-Image dene (anlayan ve hızlı model, L40S)
+
+# FLUX.1-schnell (Apache-2.0) deneme uygulaması: aynı tarifler canlı SDXL motoruyla yan yana. Canlı motora dokunmaz,
+# iş bitince deneme uygulaması durdurulur. Sonuç: deneme-sonuclari dalında flux/<tarih>/ altına.
+on:
+  workflow_dispatch:
+    inputs:
+      seed:
+        default: '42'
+
+permissions:
+  contents: write
+
+jobs:
+  dene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      SPRITE_KEY: ${{ secrets.SPRITE_KEY }}
+      ESKI_URL: https://malisah61--sprite-atolye-motor-web.us-east.modal.run
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install --quiet modal pillow
+      - name: Dene (modal run — bitince kendi kapanır)
+        run: timeout 8400 modal run modal/qwen_dene.py --seed ${{ inputs.seed }}
+      - name: Deneme uygulamasını durdur (kredi yemesin)
+        if: always()
+        run: modal app stop -y sprite-atolye-qwen-deneme || true
+      - name: Sonuçları kaydet (deneme-sonuclari dalı)
+        if: always()
+        run: |
+          ls qwen_* >/dev/null 2>&1 || exit 0
+          mkdir -p /tmp/out && cp qwen_* /tmp/out/
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          for i in 1 2 3; do
+            git fetch origin deneme-sonuclari && git checkout -f -B deneme-sonuclari origin/deneme-sonuclari
+            D="qwen/$(date -u +%Y%m%d-%H%M)"; mkdir -p "$D" && cp /tmp/out/* "$D/"
+            git add qwen && git commit -qm "Qwen denemesi $D" && git push -q origin deneme-sonuclari && break
+            sleep 5
+          done
