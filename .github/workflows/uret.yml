@@ -37,6 +37,9 @@ on:
       yuz:
         description: 'Yüz düzeltme (true/false; pixel dışı karakterlerde)'
         default: 'false'
+      ek:
+        description: 'İsteğe bağlı JSON, gövdeye eklenir (ör. hibrit: {"parts":[{"name":"nose","want":"long elephant trunk"}],"base":"cat"})'
+        default: ''
 
 permissions:
   contents: write
@@ -70,6 +73,7 @@ jobs:
           IN_REF_SCALE: ${{ inputs.ref_scale }}
           IN_EKSTRA: ${{ inputs.ekstra }}
           IN_YUZ: ${{ inputs.yuz }}
+          IN_EK: ${{ inputs.ek }}
         run: |
           python3 - <<'PY'
           import json, os, base64, urllib.request, urllib.error, time, re
@@ -81,6 +85,8 @@ jobs:
             "hires": os.environ.get("IN_EKSTRA", "false") == "true",
             "yuz": os.environ.get("IN_YUZ", "false") == "true",
           }
+          if os.environ.get("IN_EK", "").strip():
+              body.update(json.loads(os.environ["IN_EK"]))
           if os.path.exists("/tmp/referans.png"):
               body["reference"] = base64.b64encode(open("/tmp/referans.png", "rb").read()).decode()
               body["ref_scale"] = float(os.environ.get("IN_REF_SCALE") or 0.6)
@@ -95,6 +101,7 @@ jobs:
               open(f"/tmp/out/{ad}-{os.environ['IN_STIL']}-{k+1}.png", "wb").write(base64.b64decode(im))
           msg = f"{len(d['images'])} görsel, GPU {d['seconds']} sn, toplam {round(time.time()-t0)} sn, dersler: {d.get('dersler')}, taslak→pixel: {d.get('iki_asama')}, ekstra kalite: {d.get('hires')} ({d.get('hires_seconds')} sn), yüz: {d.get('yuz')}"
           print(msg)
+          print("düzeltmeler:", json.dumps(d.get("fixes"), ensure_ascii=False))
           open(os.environ["GITHUB_STEP_SUMMARY"], "a").write(msg + "\n")
           PY
       - name: Sonuçları kaydet (deneme-sonuclari dalı)

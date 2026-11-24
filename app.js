@@ -236,7 +236,7 @@ function guessBakis(t, tur) {
   t = t.toLocaleLowerCase('tr');
   if (tur === 'tile') return 'topdown';
   if (tur === 'ui' || tur === 'kart' || tur === 'ikon' || tur === 'esya') return 'front';
-  if (/(örümcek|yılan|solucan|böcek|at\b|köpek|kedi\b|kurt|araba|gemi|tank)/.test(t)) return 'side';
+  if (/(örümcek|yılan|solucan|böcek|at\b|köpek|kedi\b|kedi,|kurt|araba|gemi|tank|dört ayak|4 ayak)/.test(t)) return 'side';
   if (tur === 'bina') return 'threequarter';
   return 'front';
 }
@@ -255,7 +255,7 @@ async function interpret(text, tur, cins, bakis = 'front') {
   const head = auto
     ? 'First line must be exactly: TYPE=<one of: character, enemy, item, icon, tile, building, ui, cardframe>; VIEW=<one of: front, side, topdown, iso, threequarter>. ' +
       'enemy = monsters, creatures, undead, beasts; character = heroes, people, NPCs; item = weapons, potions, objects; tile = ground textures; building = houses, trees, props. ' +
-      'VIEW: side for animals with many legs, snakes, vehicles; topdown for tiles; front for most characters. Then on the second line write the description. '
+      'VIEW: side for four-legged animals and creatures, animals with many legs, snakes, vehicles; topdown for tiles; front for most characters. Then on the second line write the description. '
     : '';
   const q = `You write prompts for an image model that draws 2D game assets. Convert this Turkish description of a ${tur === 'auto' ? 'game asset' : (TUR_EN[tur] || 'game asset')} into a concise English visual description. ` + head +
     'Rules: describe only what can be seen (gender, age, body build, face and expression, hair, skin, clothing with colors, accessories, held items, pose). ' +
@@ -266,7 +266,7 @@ async function interpret(text, tur, cins, bakis = 'front') {
     'Do not mention background, art style, lighting or camera. Reply with one line of comma-separated phrases, at most 50 words. ' +
     'ONLY if it is a hybrid of different animals/beings, add one more final line exactly like: PARTS=head:monkey head with red eyes and fangs;wings:bat wings|BASE=snake|NO=legs,arms ' +
     '(NO = body parts that must NOT exist, e.g. legs for a snake body; write NO= empty if none) ' +
-    '(parts are simple English body-part nouns taken from the NON-base animal; BASE is the animal of the main body). No other text.\n\nDescription: ' + text;
+    '(parts are simple English body-part nouns taken from the NON-base animal, and want names that animal, e.g. nose:long pink elephant trunk; BASE is the animal of the main body, e.g. a pink cat with an elephant trunk → BASE=cat). No other text.\n\nDescription: ' + text;
   try {
     const ac = new AbortController();
     const to = setTimeout(() => ac.abort(), 20000);

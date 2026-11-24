@@ -74,6 +74,64 @@ DERSLER = [
 ]
 
 
+HAYVANLAR = ("elephant cat dog monkey ape gorilla bat snake serpent spider lion tiger leopard panther wolf fox bear eagle hawk owl "
+             "bird crow raven fish shark octopus squid horse deer stag goat ram bull cow ox pig boar rabbit hare mouse rat frog toad "
+             "crocodile alligator lizard dragon scorpion crab lobster beetle bee wasp butterfly moth rhino rhinoceros hippo giraffe "
+             "zebra camel kangaroo penguin duck chicken rooster turtle tortoise insect mantis ant worm slug snail hyena jackal "
+             "badger raccoon squirrel hedgehog porcupine sloth koala panda parrot peacock swan flamingo seal walrus whale dolphin "
+             "jellyfish mosquito fly cobra viper python lynx cheetah jaguar puma cougar bison buffalo moose elk antelope gazelle "
+             "llama alpaca sheep lamb donkey mule mole otter beaver weasel ferret skunk armadillo anteater platypus").split()
+
+
+def hibrit_hazirla(prompt, negative, parts, base):
+    """24 Kasım (kullanıcı: 'pembe kafalı kedi, fil burunlu' → motor bütün hayvanı FİL çizdi; Gemini kediyi koruyup
+    sadece burnu hortum yaptı). SDXL'de tarifte geçen ikinci hayvanın adı ('elephant') bütün figürü ele geçiriyor.
+    Çözüm: ana çizimde parçaların geldiği hayvanın ADI tariften çıkarılır (biçim tarifi kalır: 'trunk-like nose'),
+    negatife '<hayvan> body/head/ears/legs' eklenir; gövde ana hayvan olarak çizilir. Parça sonra _fix_parts ile
+    sadece kendi bölgesinde (tam 'elephant trunk' tarifiyle) çizilir. Dönüş: (prompt, negative, diger_hayvanlar)."""
+    import re
+
+    base_l = str(base or "").lower()
+    baz = {w for w in re.findall(r"[a-z]+", base_l)}
+    diger = []
+    for part in parts or []:
+        for w in re.findall(r"[a-z]+", str(part.get("want", "")).lower()):
+            w1 = w[:-1] if w.endswith("s") and w[:-1] in HAYVANLAR else w
+            if w1 in HAYVANLAR and w1 not in baz and w1 not in diger:
+                diger.append(w1)
+    # parça tarifinde hayvan adı yoksa (ör. want="trunk") tarifin kendisinde geçen başka hayvanlara bak
+    for w in re.findall(r"[a-z]+", str(prompt).lower()):
+        w1 = w[:-1] if w.endswith("s") and w[:-1] in HAYVANLAR else w
+        if w1 in HAYVANLAR and w1 not in baz and w1 not in diger:
+            diger.append(w1)
+    if not diger:
+        return prompt, negative, []
+    if len(diger) == 1:  # parça çiziminde hayvan adı tarifte olsun ("trunk" → "elephant trunk")
+        for part in parts or []:
+            if diger[0] not in str(part.get("want", "")).lower():
+                part["want"] = f"{diger[0]} {part.get('want', '')}".strip()
+    yeni = prompt
+    for h in diger:
+        yeni = re.sub(rf"(?i)\b{h}(?:s|es)?(?:[- ]like|'s|-shaped|-style)?\b", "", yeni)
+    yeni = re.sub(r"\s{2,}", " ", re.sub(r"\s+,", ",", yeni))
+    yeni = re.sub(r"(,\s*){2,}", ", ", yeni).strip(" ,")
+    # parçanın biçimi (hayvan adı olmadan) ana hayvanın hemen arkasına: "cat, long pink trunk as its nose, ..."
+    bicim = []
+    for part in parts or []:
+        ad = str(part.get("name", "")).strip().lower()
+        w = str(part.get("want", ""))
+        for h in diger:
+            w = re.sub(rf"(?i)\b{h}(?:s|es)?(?:[- ]like|'s)?\b", "", w)
+        w = re.sub(r"\s{2,}", " ", w).strip(" ,")
+        if w and ad and w.lower() != ad:
+            bicim.append(w if ad in w.lower().split() else f"{w} as its {ad}")
+    # ana hayvan EN BAŞTA (model ilk kelimelere en çok ağırlık verir), sonra parça biçimi, sonra kalan tarif
+    on = f"a {base_l} creature with " + " and ".join(bicim) if base_l and bicim else base_l
+    yeni = ", ".join(x for x in [on, yeni] if x)
+    ek = ", ".join(f"{h}, {h} body, {h} head, {h} ears, {h} legs" for h in diger)
+    return yeni, f"{negative}, {ek}"[:700], diger
+
+
 def dersleri_uygula(prompt, negative):
     """Tarife uyan dersleri bulur → (yeni negatif, uygulanan ders adları, iki aşama gerekli mi)."""
     import re
@@ -677,6 +735,34 @@ class Motor:
         mask = mask.filter(ImageFilter.GaussianBlur(grow / 2))  # yumuşak kenar: yeni çizim çevreye kademeli karışır
         return mask, float(a.mean()), box
 
+    def _uzat_maske(self, im, mask, box, name, want=""):
+        """24 Kasım: burun → hortum gibi UZUN parçalar küçük burun maskesine sığmıyordu. Hortum/gaga/burun/boynuz/
+        dokunaç istenince maske parçanın kutusundan aşağı-ileri doğru (kafa boyu kadar) uzatılır; kuyruk/kanat için çevresi
+        genişletilir. Diğer parçalar (kafa, göz) olduğu gibi."""
+        import re
+
+        from PIL import Image, ImageChops, ImageDraw, ImageFilter
+
+        ad = f"{name} {want}".lower()
+        if not re.search(r"\b(nose|trunk|snout|beak|horns?|tusks?|tentacles?|tails?|wings?|proboscis)\b", ad):
+            return mask
+        x0, y0, x1, y1 = box
+        bw, bh = x1 - x0, y1 - y0
+        _, _, hbox = self._part_mask(im, "head")
+        hh = (hbox[3] - hbox[1]) if hbox else max(bw, bh) * 3
+        hw = (hbox[2] - hbox[0]) if hbox else max(bw, bh) * 3
+        ek = Image.new("L", im.size, 0)
+        d = ImageDraw.Draw(ek)
+        if re.search(r"\b(nose|trunk|snout|proboscis|tusks?|tentacles?)\b", ad):
+            # yüzden aşağı ve iki yana sarkan bölge (hortum/dokunaç aşağı iner)
+            d.rounded_rectangle((x0 - 0.35 * hw, y0, x1 + 0.35 * hw, min(im.height, y1 + 1.1 * hh)), radius=int(0.2 * hw), fill=255)
+        elif re.search(r"\b(beak|horns?)\b", ad):
+            d.ellipse((x0 - 0.4 * bw, y0 - 0.6 * bh, x1 + 0.4 * bw, y1 + 0.4 * bh), fill=255)
+        else:  # kuyruk, kanat: çevresini genişlet
+            d.ellipse((x0 - 0.5 * bw, y0 - 0.5 * bh, x1 + 0.5 * bw, y1 + 0.5 * bh), fill=255)
+        ek = ek.filter(ImageFilter.GaussianBlur(max(6, int(0.02 * max(im.size)))))
+        return ImageChops.lighter(mask.convert("L"), ek)
+
     def _clip_pref(self, crop, good, bad):
         """Kırpılan bölge 'good' tarifine mi 'bad' tarifine mi benziyor → good olasılığı (0-1)."""
         import torch
@@ -842,6 +928,7 @@ class Motor:
                     break
                 g = torch.Generator("cuda").manual_seed(seed + 101 + i)
                 degisti = True
+                mask = self._uzat_maske(im, mask, box, name, want)
                 im = self.inp(prompt=f"{want}, {style_text}", negative_prompt=negative, image=im, mask_image=mask,
                               width=im.width, height=im.height, strength=0.92, num_inference_steps=28,
                               guidance_scale=7.0, generator=g, ip_adapter_image=ipa).images[0]
@@ -973,6 +1060,12 @@ class Motor:
         ipa = self._common(style, ref_img, ref_scale)
         prompt = self._lora_prompt(prompt)
         secimler = []
+        neg_parca, prompt_parca, hibrit = negative, prompt, []
+        if parts and base and not tileable:
+            # hibrit yaratık: ana çizimde ikinci hayvanın adı yok (gövdeyi ele geçirmesin), parça sonra yerinde çizilir
+            prompt, negative, hibrit = hibrit_hazirla(prompt, negative, parts, base)
+            if hibrit:
+                secimler_not = {"parca": "hibrit", "durum": f"gövde {base}; {', '.join(hibrit)} sadece parçada", "tarif": prompt[:300]}
         if (parts or absent) and not tileable:
             # her istenen görsel için 4 taslak tara, en doğru kompozisyonun seed'ini kullan
             seeds = []
@@ -1016,11 +1109,14 @@ class Motor:
             for k, im in enumerate(out):
                 log = [secimler[k]] if k < len(secimler) else []
                 try:
+                    if hibrit:
+                        log.insert(0, secimler_not)
                     son, yapi, pp = self._score(im, parts, absent, base, detay=True)
                     if yapi >= 0.9 and all(x >= 0.55 for x in pp):
                         log.append({"parca": "sonuç", "durum": "tarife uygun", "skor": round(son, 2)})
-                    else:  # nadir: seçilen taslak bile tam tutmadıysa parçayı düzelt (yedek yol)
-                        im, l2 = self._fix_parts(im, parts or [], base, style_text, negative, seed + k, ipa, absent, prompt)
+                    else:  # seçilen taslak tam tutmadıysa (hibritte genelde) parçayı yerinde çiz
+                        # parça çiziminde ikinci hayvan yasak değil (neg_parca = asıl negatif)
+                        im, l2 = self._fix_parts(im, parts or [], base, style_text, neg_parca, seed + k, ipa, absent, prompt)
                         log += l2
                 except Exception as e:  # noqa
                     log.append({"hata": str(e)[:200]})
@@ -1047,7 +1143,7 @@ class Motor:
             out = self._hires(out, prompt, negative, seed, ipa)
         hs = round(time.time() - t1, 2)
         # 0d Yüz düzeltme: karakterlerde küçük yüzü yüksek çözünürlükte yeniden çiz (pixel/doku/arkadan görünüşte kapalı)
-        yuz = bool(yuz) and style != "pixel" and not tileable and not re.search(r"(?i)\b(back view|from behind|facing away)\b", prompt)
+        yuz = bool(yuz) and not parts and style != "pixel" and not tileable and not re.search(r"(?i)\b(back view|from behind|facing away)\b", prompt)
         yuz_log, ys = [], 0.0
         if yuz:
             t2 = time.time()
