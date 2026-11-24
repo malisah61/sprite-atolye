@@ -1464,8 +1464,12 @@ class Animator:
         havuz = ThreadPoolExecutor(max_workers=2)
         isler_k = []
         zincir = body.get("zincir", True)  # üçlü yöntem (referans + önceki kare); False → eski yan yana
-        uc = (f"three side-by-side pictures of the exact same character, identical outfit, identical weapon and colors, {tarif}, "
-              "full body, side view, facing right, isolated on a plain flat solid light gray background")
+        # "identical weapon" sadece tarifte silah varsa (24 Kasım duman testi: silahsız zombinin eline kırmızı bir silah çizildi)
+        import re as _re
+        silahli = bool(_re.search(r"\b(rifles?|guns?|pistols?|revolvers?|smg|carbine|swords?|axes?|bows?|spears?|daggers?|knife|knives|"
+                                  r"blades?|weapons?|maces?|hammers?|clubs?|shields?|staffs?|katana|halberd|crossbow|bazooka)\b", tarif.lower()))
+        uc = (f"three side-by-side pictures of the exact same character, identical outfit{', identical weapon' if silahli else ''} and colors, "
+              f"{tarif}, full body, side view, facing right, isolated on a plain flat solid light gray background")
         onceki, onceki_poz = ref, dur
         for p in pozlar_liste:
             pz = pozlar.ciz(p, W, H, boy=boy)
