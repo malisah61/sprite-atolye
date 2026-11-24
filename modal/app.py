@@ -1280,7 +1280,7 @@ ANIM_TURLER = {"bekleme": 4, "yuru": 8, "kos": 8, "saldir": 8, "ates": 4, "zipla
 
 
 @app.cls(
-    gpu="L4",
+    gpu=["L4", "A10G", "L40S"],  # 24 Kasım: L4 bulunamayınca animatör hiç açılmadı (303) → yedek kartlar
     cpu=8.0,  # arka plan silme (BiRefNet, CPU) kareler çizilirken paralel yürür
     timeout=900,
     scaledown_window=60,  # 60 sn boşta kalınca kapanır
@@ -1625,7 +1625,7 @@ qwen_image = (
 
 @app.cls(
     image=qwen_image,
-    gpu="L40S",
+    gpu=["L40S", "A100-80GB"],  # L40S yoksa yedek
     cpu=8.0,
     memory=98304,  # yüklerken bf16 gövde (41 GB) işlemci belleğinde birleştirilir
     timeout=900,
