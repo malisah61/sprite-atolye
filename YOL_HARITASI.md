@@ -102,3 +102,4 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - 22 Kasım gece: 2 kurulum/test + 1 üretim → +~0,4 $. Kullanıcı isteğiyle +2 kurulum/test (tek silah) → +~0,4 $. Ay toplamı tahmini ~5-6 $ (20 $ sınırının altında).
 - 23 Kasım gece: 2 kurulum/test (~17 dk'lık) + 2 portre üretimi (+2 başarısız) → +~0,45 $. Ay toplamı tahmini ~6-7 $ (20 $ sınırının altında).
 - 24 Kasım gece: 1 animasyon denemesi (L4 ~16 dk) + 1 kurulum/duman testi → +~0,35 $. Ay toplamı tahmini ~7-8 $ (20 $ sınırının altında).
+- 24 Kasım (gündüz, kullanıcıyla): Z-Image + Qwen denemeleri, 2 fil-kedi üretimi, Ressam kurulumu/testi, animatör hata ayıklama → +~1,2 $. Ay toplamı tahmini ~9-10 $ (20 $ sınırının altında).
