@@ -1,0 +1,83 @@
+{
+ "qwen": {
+  "vampir_orumcek": {
+   "sn": 24.2,
+   "dolar": 0.0131
+  },
+  "fil_kedi": {
+   "sn": 24.5,
+   "dolar": 0.0133
+  },
+  "pixel_zombi": {
+   "sn": 20.9,
+   "dolar": 0.0113
+  },
+  "cizgi_kadin": {
+   "sn": 22.9,
+   "dolar": 0.0124
+  },
+  "hd_aslan": {
+   "sn": 20.2,
+   "dolar": 0.0109
+  },
+  "esya_kilic": {
+   "sn": 22.0,
+   "dolar": 0.0119
+  },
+  "vampir_orumcek_2": {
+   "sn": 19.3,
+   "dolar": 0.0105
+  },
+  "fil_kedi_2": {
+   "sn": 21.5,
+   "dolar": 0.0116
+  }
+ },
+ "sdxl": {
+  "vampir_orumcek": {
+   "gpu_sn": 165.28,
+   "bekleme_dahil_sn": 310,
+   "dolar": 0.0271
+  },
+  "vampir_orumcek_2": {
+   "gpu_sn": 163.02,
+   "bekleme_dahil_sn": 166,
+   "dolar": 0.0267
+  },
+  "fil_kedi": {
+   "gpu_sn": 144.95,
+   "bekleme_dahil_sn": 149,
+   "dolar": 0.0238
+  },
+  "fil_kedi_2": {
+   "gpu_sn": 144.98,
+   "bekleme_dahil_sn": 149,
+   "dolar": 0.0238
+  },
+  "pixel_zombi": {
+   "gpu_sn": 38.67,
+   "bekleme_dahil_sn": 40,
+   "dolar": 0.0063
+  },
+  "cizgi_kadin": {
+   "gpu_sn": 81.51,
+   "bekleme_dahil_sn": 83,
+   "dolar": 0.0134
+  },
+  "hd_aslan": {
+   "gpu_sn": 134.91,
+   "bekleme_dahil_sn": 137,
+   "dolar": 0.0221
+  },
+  "esya_kilic": {
+   "gpu_sn": 53.82,
+   "bekleme_dahil_sn": 57,
+   "dolar": 0.0088
+  }
+ },
+ "qwen_genel": {
+  "yukleme_sn": 58.1,
+  "kip": "bf16 + parça parça (cpu offload)",
+  "toplam_sn": 294
+ }
+}
