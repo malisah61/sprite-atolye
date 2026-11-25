@@ -1600,6 +1600,35 @@ function karoCiz(k, T, dA, dB, gur, yum, dal, gol) {
   return c;
 }
 
+/* Varyant: düz (tam A / tam B) karonun KENARLARI aynı kalır, içine aynı dokunun kaydırılmış/döndürülmüş
+   bir parçası düzensiz bir lekeyle karışır → komşularla dikişsiz, ama haritada tekrar hissi azalır. */
+function karoVaryant(d, T, n, sert) {
+  let rs = (n * 7919 + 104729) >>> 0;
+  const rnd = () => { rs = (rs * 1664525 + 1013904223) >>> 0; return rs / 4294967296; };
+  // Döndürme yok: dokunun ışık yönü (taş gölgeleri) bozulmasın
+  const ox = Math.floor(T * (0.25 + rnd() * 0.5)), oy = Math.floor(T * (0.25 + rnd() * 0.5));
+  const lum = (a, i) => 0.299 * a[i] + 0.587 * a[i + 1] + 0.114 * a[i + 2];
+  let ort = 0; for (let i = 0; i < d.length; i += 4) ort += lum(d, i); ort /= T * T;
+  const gur = karoGurultu(T, 1000 + n * 31);
+  const pencere = t => { const e = Math.min(t, 1 - t); const q = Math.max(0, Math.min(1, (e - 0.04) / 0.14)); return q * q * (3 - 2 * q); };
+  const c = newCanvas(T, T), ctx = c.getContext('2d');
+  const im = ctx.createImageData(T, T), o = im.data;
+  for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
+    const w = pencere((x + 0.5) / T) * pencere((y + 0.5) / T);
+    // Kaydırılmış örnek (dikişsiz doku olduğu için mod T güvenli)
+    const sx = (x + ox) % T, sy = (y + oy) % T;
+    const i = (y * T + x) * 4, j = (sy * T + sx) * 4;
+    // Dar geçiş; geçiş çizgisi koyu piksellere (derz, gölge) kayar → taşlar yarı saydam üst üste binmez
+    const koyu = Math.max(0, Math.min(1, (ort - Math.min(lum(d, i), lum(d, j))) / Math.max(20, ort * 0.35)));
+    let m = Math.max(0, Math.min(1, (w - 0.2 + gur[y * T + x] * 0.9) / (0.06 + 0.22 * koyu))) * w;
+    if (sert) m = m >= 0.5 ? 1 : 0;
+    for (let ch = 0; ch < 3; ch++) o[i + ch] = Math.round(d[i + ch] + (d[j + ch] - d[i + ch]) * m);
+    o[i + 3] = 255;
+  }
+  ctx.putImageData(im, 0, 0);
+  return c;
+}
+
 function karoOlustur() {
   if (!KARO.A || !KARO.B) return toast('Önce iki zemin dokusu seç (A ve B)');
   const T = +$('#karoBoy').value;
@@ -1609,13 +1638,28 @@ function karoOlustur() {
   const dA = karoDoku(KARO.A, T), dB = karoDoku(KARO.B, T);
   const gur = karoGurultu(T, tohum);
   const set = mod === 'blob' ? blobSeti() : koseSeti();
+  const varSay = Math.max(0, Math.min(6, +($('#karoVar') ? $('#karoVar').value : 0) || 0));
   const sut = mod === 'blob' ? 8 : 4;
+  set.forEach(k => { k.canvas = karoCiz(k, T, dA, dB, gur, yum, dal, gol); k.secenek = [k]; });
+  // Düz karoların varyantları (tam A ve tam B): aynı arazi bitleri → Godot rastgele seçer
+  if (varSay > 0) {
+    const tamA = set.find(k => k.anahtar === (mod === 'blob' ? 255 : 15));
+    const tamB = set.find(k => k.anahtar === (mod === 'blob' ? 'B' : 0));
+    [[tamA, dA, 1], [tamB, dB, 2]].forEach(([ana, d, z]) => {
+      if (!ana) return;
+      for (let v = 1; v <= varSay; v++) {
+        const k = { anahtar: ana.anahtar + '~' + v, ana: ana.anahtar, varyant: v, merkez: ana.merkez, bitler: { ...ana.bitler } };
+        k.canvas = karoVaryant(d, T, tohum * 13 + z * 101 + v, yum <= 0.001);
+        ana.secenek.push(k);
+        set.push(k);
+      }
+    });
+  }
   const sat = Math.ceil(set.length / sut);
   const sheet = newCanvas(sut * T, sat * T);
   const sc = sheet.getContext('2d');
   set.forEach((k, n) => {
     k.x = n % sut; k.y = Math.floor(n / sut);
-    k.canvas = karoCiz(k, T, dA, dB, gur, yum, dal, gol);
     sc.drawImage(k.canvas, k.x * T, k.y * T);
   });
   Object.assign(KARO, { set, sheet, mod, boy: T, sut, sat });
@@ -1624,7 +1668,7 @@ function karoOlustur() {
   v.getContext('2d').drawImage(sheet, 0, 0);
   showScaled(v, 640);
   karoHarita();
-  toast(set.length + ' karo hazır');
+  toast(set.length + ' karo hazır' + (varSay ? ` (${varSay * 2} varyant dahil)` : ''));
 }
 
 /* Rastgele harita: kendi karolarımızla döşeyip dikiş/eşleşme kontrolü */
@@ -1645,7 +1689,8 @@ function karoHarita() {
   const ort = a.flat().sort((p, q) => p - q)[Math.floor(gw * gh / 2)];
   const A = (x, y) => (y >= 0 && y < gh && x >= 0 && x < gw && a[y][x] > ort) ? 1 : 0;
   const bul = {};
-  KARO.set.forEach(k => bul[k.anahtar] = k);
+  KARO.set.forEach(k => { if (k.ana === undefined) bul[k.anahtar] = k; });
+  const sec = k => k.secenek && k.secenek.length > 1 ? k.secenek[Math.floor(rnd() * k.secenek.length)] : k;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     let k;
     if (KARO.mod === 'kose') {
@@ -1657,7 +1702,7 @@ function karoHarita() {
         k = bul[blobNormal(m)];
       }
     }
-    ctx.drawImage(k.canvas, x * T, y * T);
+    ctx.drawImage(sec(k).canvas, x * T, y * T);
   }
   if ($('#karoIzgara').checked) {
     ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = Math.max(1, T / 64);
@@ -1683,6 +1728,8 @@ function karoTres(resPath) {
   for (const k of KARO.set) {
     const p = `${k.x}:${k.y}/0`;
     s += `${p} = 0\n${p}/terrain_set = 0\n${p}/terrain = ${k.merkez}\n`;
+    // Varyantlar aynı bitlerle: Godot arazi fırçası olasılığa göre rastgele seçer (ana karo biraz daha sık)
+    if (k.secenek && k.secenek.length > 1) s += `${p}/probability = 1.5\n`;
     for (const [y, val] of Object.entries(k.bitler)) s += `${p}/terrains_peering_bit/${y} = ${val}\n`;
   }
   s += `\n[resource]\ntile_size = Vector2i(${T}, ${T})\n`;
@@ -1727,7 +1774,7 @@ $('#btnKaroZip').onclick = async () => {
   const files = [
     { name: ad + '.png', data: new Uint8Array(await (await canvasToBlob(KARO.sheet)).arrayBuffer()) },
     { name: ad + '.tres', data: enc.encode(karoTres('res://assets/tiles/' + ad + '.png')) },
-    { name: 'BENIOKU.txt', data: enc.encode(`Sprite Atölye tileset — ${KARO.set.length} karo, ${KARO.boy} px, ${KARO.mod === 'blob' ? '47 blob (Match Corners and Sides)' : '16 köşe (Match Corners)'}\nİki dosyayı da Godot projende res://assets/tiles/ içine koy.\nTileMapLayer → Tile Set: ${ad}.tres → TileMap paneli → Terrains sekmesi → araziyi seçip boya.\n`) },
+    { name: 'BENIOKU.txt', data: enc.encode(`Sprite Atölye tileset — ${KARO.set.length} karo, ${KARO.boy} px, ${KARO.mod === 'blob' ? '47 blob (Match Corners and Sides)' : '16 köşe (Match Corners)'}${KARO.set.some(k => k.varyant) ? ' + düz karo varyantları (aynı arazi bitleri, Godot rastgele seçer)' : ''}\nİki dosyayı da Godot projende res://assets/tiles/ içine koy.\nTileMapLayer → Tile Set: ${ad}.tres → TileMap paneli → Terrains sekmesi → araziyi seçip boya.\n`) },
   ];
   downloadBlob(makeZip(files), ad + '.zip');
 };

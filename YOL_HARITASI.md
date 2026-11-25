@@ -53,7 +53,9 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 ## 3. 🔄 Tileset (Wang/blob geçişleri, Godot .tres)
 - 25 Kasım gece (motorsuz — motorda gündüz canlı oturum vardı): sitede **Tileset** sekmesi. İki dikişsiz doku (galeriden ya da yükle) → **16'lık köşe seti** (Godot "Match Corners") ya da **47'lik blob seti** (+1 düz B karosu, "Match Corners and Sides"). Geçiş alanı köşe/ızgara değerlerinden çift doğrusal + karo boyunda periyodik gürültü (her karo her komşusuyla dikişsiz), kenar yumuşaklığı (0 = pixel art keskin), dalga, B tarafında kenar gölgesi. Rastgele harita önizlemesi (dikiş/eşleşme kontrolü), PNG / Godot 4 TileSet .tres (arazi bitleri dolu) / .zip / galeri.
 - Test: playwright ile gerçek çimen dokusu (motor test görseli) + kodla toprak; köşe 64, blob 64, blob 16 (keskin) → haritalarda dikiş yok, geçişler doğru. Godot bu ortamda yok → .tres Godot'ta açılarak henüz denenmedi.
-- Sırada: .tres'i Godot'ta doğrulama, dokuyu birkaç karoya yayma (tekrar hissini azaltmak için karo varyantları), izometrik karo, motorla geçiş kenarını "boyatma" (ör. çimen saçakları).
+- 26 Kasım gece (motorsuz — gece başka bir oturum motorda sipariş üretiyordu): **düz karo varyantları**. "Düz karo varyantı" seçimi (0-6, varsayılan 3): tam A ve tam B karolarının kenar pikselleri birebir aynı, içine aynı dokunun kaydırılmış bir parçası düzensiz bir lekeyle karışır (geçiş çizgisi koyu piksellere/derzlere kayar → taşlar yarı saydam üst üste binmez; döndürme yok, ışık yönü korunur; pixel modunda sert maske). .tres'te aynı arazi bitleri + ana karoya `probability = 1.5` → Godot arazi fırçası rastgele karıştırır; harita önizlemesi de rastgele seçer.
+  - Test (playwright, motorun gerçek çimen + kaldırım dokuları): blob 64 / köşe 32 / varyantsız — varyant kenarı ile ana karo kenarı farkı **0**, iç ortalama fark 10-14; JS hatası yok, telefonda yatay taşma yok. 64 px haritada çiçek sütunu tekrarı kayboldu. Sınır: 32 px ve altında doku detayı tam karo kenarına denk gelirse (çiçekler) tekrar biraz sürüyor.
+- Sırada: .tres'i Godot'ta doğrulama, izometrik karo, motorla geçiş kenarını "boyatma" (ör. çimen saçakları), geçiş karolarına da varyant.
 ## 4. 🔄 Yön seti iyileştirme (arkadan görünüş, 4/8 yön) — Blender yolu (kullanıcı isteği, 22 Kasım akşam)
 - `uc_boyut.yml` (GPU'suz, GitHub Actions, ~9 dk): görsel → **TripoSR** (MIT) ile 3D (.glb/.ply, CPU'da ~1 dk) → **Blender 4.2 LTS** (GPL; çıktılar serbest) ile 4/8 yönden şeffaf render → isteğe bağlı **motorla yeniden boyama** (render = şekil iskeleti, /edit güç 0.55; orijinal = IP-Adapter referansı 0.5).
 - İlk sonuç (çizgi film kadın): ham 3D render bulanık (yüz silik) ama yönler tutarlı; **boyanmış hali çok iyi** — gerçek arkadan görünüş, kıyafet/saç/çizme her yönde aynı. Kusur: yan/arka görünüşte orijinalde olmayan bir sırt çantası eklendi (omuz kayışından). Maliyet: 4 yön boyama ≈ 130 sn GPU ≈ 0,02 $.
@@ -80,6 +82,7 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - kararli-v10: 2026-11-23 sabah (animator L4 öncesi — gündüz oturumu)
 - kararli-v11: 2026-11-24 gece (animasyon tutarlılığı öncesi)
 - kararli-v12: 2026-11-25 gece (Tileset sekmesi öncesi)
+- kararli-v13: 2026-11-26 gece (karo varyantları öncesi)
 
 ## Gece günlüğü
 - 2026-11-20: 0a başladı — karşılaştırma iş akışı eklendi; DreamShaper deneme motoru açılmadı (3/3 deneme hakkı kullanıldı), canlı motor değişmedi.
@@ -97,6 +100,8 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 
 - 2026-11-23 (gece): 0d — yüz düzeltme (motor + site + test), Komando için komando portreleri (Reilly, Blake) — bu oturumda Komando'ya yazma izni yoktu (add_repo yok, push 403) → `deneme-sonuclari/siparis/komando/portreler-20261123/`.
 
+- 2026-11-26 (gece): başka oturum motorda sipariş çalıştırdığı için motorsuz — madde 3 karo varyantları (site). Motor kurulumu/üretim yok. Komando'ya push yine 403 (oturuma bağlı değil).
+
 - 2026-11-25 (gece): motor gündüz canlı oturumda kullanıldığı için motorsuz iş — madde 3 Tileset sekmesi (site). Motor kurulumu/üretim yok. Komando'ya yine yazma izni yok (oturuma bağlı değil, push 403).
 
 ## Tahmini Modal harcaması (Kasım 2026)
@@ -110,3 +115,4 @@ Her gece bir madde (ya da büyük bir maddenin bir parçası) yapılır. ✅ bit
 - 24 Kasım gece: 1 animasyon denemesi (L4 ~16 dk) + 1 kurulum/duman testi → +~0,35 $. Ay toplamı tahmini ~7-8 $ (20 $ sınırının altında).
 - 24 Kasım (gündüz, kullanıcıyla): Z-Image + Qwen denemeleri, 2 fil-kedi üretimi, Ressam kurulumu/testi, animatör hata ayıklama → +~1,2 $. Ay toplamı tahmini ~9-10 $ (20 $ sınırının altında).
 - 25 Kasım gece: motor kullanılmadı → +0 $. Ay toplamı tahmini ~9-10 $.
+- 26 Kasım gece: motor kullanılmadı → +0 $ (gün içi sipariş üretimleri bu tahmine dahil değil).
