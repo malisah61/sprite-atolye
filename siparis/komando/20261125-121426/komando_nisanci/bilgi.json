@@ -1,0 +1,21 @@
+{
+ "ad": "komando_nisanci",
+ "tarif": "a WW2 British army sniper captain, adult man, green-brown camouflage Denison smock jacket, khaki trousers, brown leather boots, khaki wool cap comforter hat, face with light stubble",
+ "secilen": 2,
+ "puan": [
+  0.552,
+  0.537,
+  0.469
+ ],
+ "gpu_sn": 94.5,
+ "toplam_sn": 229,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "komando",
+ "ekipman": [
+  "rifle",
+  "webbing"
+ ],
+ "cikti": "assets/sprites/komando_nisanci_sprite_sheet.png"
+}
