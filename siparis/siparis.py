@@ -106,6 +106,10 @@ def uret(yol, ad, cikis):
              "width": int(w), "height": int(h), "auto": True, "hires": bool(s.get("ekstra", False))}
     if komando:
         govde["negative"] = KOMANDO_NEG
+    if s.get("doku"):
+        # dikişsiz doku: motor tileable yoluyla üretir; arka plan temizliği (auto) dokuyu bozar
+        govde["tileable"] = True
+        govde["auto"] = False
     if s.get("referans"):
         # karakter kimliği için referans görsel (IP-Adapter): hedef repodaki dosya, ör. "assets/kartlar/tyr.png"
         # (23 Kasım: beden ile portre aynı kişi görünsün — Hades ve Tyr'da uyuşmamıştı)
