@@ -1,0 +1,15 @@
+{
+ "ad": "kisi_sakin_ogrenci",
+ "tarif": "university student in his twenties, hoodie, backpack straps, sneakers, messy hair, full body cartoon game character, standing in a T-pose with arms stretched out to the sides, facing the viewer, front view, symmetrical, empty hands, plain light grey background, single character",
+ "secilen": 1,
+ "puan": [
+  0.955,
+  0.749
+ ],
+ "gpu_sn": 60.22,
+ "toplam_sn": 312,
+ "dersler": [],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/uretilen/karakterler/sakin_ogrenci.png"
+}

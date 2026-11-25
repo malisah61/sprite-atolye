@@ -1,0 +1,15 @@
+{
+ "ad": "kisi_doktor_selin",
+ "tarif": "female doctor in her thirties, hair in a bun, white coat over blue scrubs, stethoscope around neck, full body cartoon game character, standing in a T-pose with arms stretched out to the sides, facing the viewer, front view, symmetrical, empty hands, plain light grey background, single character",
+ "secilen": 1,
+ "puan": [
+  0.83,
+  0.802
+ ],
+ "gpu_sn": 58.09,
+ "toplam_sn": 262,
+ "dersler": [],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/uretilen/karakterler/doktor_selin.png"
+}
