@@ -1,0 +1,17 @@
+{
+ "ad": "kisi_sakin_teyze",
+ "tarif": "photorealistic full body photograph of a real elderly turkish woman, headscarf, long floral skirt, knitted cardigan, wrinkled natural skin, realistic human anatomy and body proportions, standing in a T-pose with arms stretched out to the sides, facing the viewer, front view, symmetrical, empty hands, plain light grey background, single character, sharp focus, studio lighting",
+ "secilen": 1,
+ "puan": [
+  0.945,
+  0.859
+ ],
+ "gpu_sn": 57.34,
+ "toplam_sn": 176,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/uretilen/karakterler/sakin_teyze.png"
+}

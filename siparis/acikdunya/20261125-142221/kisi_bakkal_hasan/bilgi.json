@@ -1,0 +1,17 @@
+{
+ "ad": "kisi_bakkal_hasan",
+ "tarif": "photorealistic full body photograph of a real friendly turkish grocer in his sixties, grey moustache, flat cap, white apron over a vest, wrinkled natural skin, realistic human anatomy and body proportions, standing in a T-pose with arms stretched out to the sides, facing the viewer, front view, symmetrical, empty hands, plain light grey background, single character, sharp focus, studio lighting",
+ "secilen": 1,
+ "puan": [
+  0.944,
+  0.799
+ ],
+ "gpu_sn": 50.81,
+ "toplam_sn": 220,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/uretilen/karakterler/bakkal_hasan.png"
+}
