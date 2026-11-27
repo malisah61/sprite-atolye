@@ -1,0 +1,17 @@
+{
+ "ad": "oyuncu_portre",
+ "tarif": "friendly cartoon portrait of a man, head and shoulders, warm smile, game avatar icon, clean outline",
+ "secilen": 1,
+ "puan": [
+  0.58,
+  0.571
+ ],
+ "gpu_sn": 45.14,
+ "toplam_sn": 271,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/uretilen/oyuncu_portre.png"
+}

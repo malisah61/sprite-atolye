@@ -1,0 +1,17 @@
+{
+ "ad": "kisi_sakin_isci",
+ "tarif": "construction worker man, orange safety vest, yellow hard hat, work boots, full body cartoon game character, standing in a T-pose with arms stretched out to the sides, facing the viewer, front view, symmetrical, empty hands, plain light grey background, single character",
+ "secilen": 1,
+ "puan": [
+  0.992,
+  0.784
+ ],
+ "gpu_sn": 56.2,
+ "toplam_sn": 325,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/uretilen/karakterler/sakin_isci.png"
+}

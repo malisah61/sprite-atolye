@@ -1,0 +1,17 @@
+{
+ "ad": "kisi_sakin_kadin",
+ "tarif": "one woman in her thirties, long brown hair, denim jacket, long skirt, ankle boots, full body from head to feet, 3D cartoon render style, standing in a T-pose with both arms stretched straight out horizontally to the sides, facing the viewer, front view, symmetrical, empty hands, plain light grey background, single character, only one person",
+ "secilen": 1,
+ "puan": [
+  0.909,
+  0.873
+ ],
+ "gpu_sn": 53.29,
+ "toplam_sn": 325,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/uretilen/karakterler/sakin_kadin.png"
+}

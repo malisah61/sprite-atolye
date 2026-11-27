@@ -1,0 +1,17 @@
+{
+ "ad": "kisi_oyuncu",
+ "tarif": "a man in his thirties, short dark hair, light beard, casual shirt and jeans, full body cartoon game character, standing in a T-pose with arms stretched out to the sides, facing the viewer, front view, symmetrical, empty hands, plain light grey background, single character",
+ "secilen": 1,
+ "puan": [
+  0.939,
+  0.826
+ ],
+ "gpu_sn": 53.87,
+ "toplam_sn": 319,
+ "dersler": [
+  "insan kulağı"
+ ],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/uretilen/karakterler/oyuncu.png"
+}

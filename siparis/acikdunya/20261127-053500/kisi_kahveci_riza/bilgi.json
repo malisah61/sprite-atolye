@@ -1,0 +1,15 @@
+{
+ "ad": "kisi_kahveci_riza",
+ "tarif": "turkish tea house owner in his fifties, black moustache, rolled-up sleeves, dark vest, white shirt, full body cartoon game character, standing in a T-pose with arms stretched out to the sides, facing the viewer, front view, symmetrical, empty hands, plain light grey background, single character",
+ "secilen": 1,
+ "puan": [
+  0.858,
+  0.848
+ ],
+ "gpu_sn": 59.18,
+ "toplam_sn": 262,
+ "dersler": [],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/uretilen/karakterler/kahveci_riza.png"
+}

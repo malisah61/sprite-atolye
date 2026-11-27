@@ -1,0 +1,15 @@
+{
+ "ad": "ikon_simit",
+ "tarif": "turkish simit, thin circular braided bread ring densely covered with toasted sesame seeds, golden brown crust, no icing, no sprinkles, not a donut, game item icon, cartoon, single object",
+ "secilen": 1,
+ "puan": [
+  0.737,
+  0.602
+ ],
+ "gpu_sn": 32.44,
+ "toplam_sn": 225,
+ "dersler": [],
+ "hat": "",
+ "ekipman": [],
+ "cikti": "assets/uretilen/ikon_simit.png"
+}
